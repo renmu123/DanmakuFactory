@@ -22,157 +22,94 @@
  */
 
 #include "DanmakuFactoryList.h"
+#include <stdio.h>
+#include <stdlib.h>
+
+void splitList(DANMAKU *source, DANMAKU **frontRef, DANMAKU **backRef) {
+    DANMAKU *fast;
+    DANMAKU *slow;
+    slow = source;
+    fast = source->next;
+
+    while (fast != NULL) {
+        fast = fast->next;
+        if (fast != NULL) {
+            slow = slow->next;
+            fast = fast->next;
+        }
+    }
+
+    *frontRef = source;
+    *backRef = slow->next;
+    slow->next = NULL;
+}
+// Merge two sorted linked lists
+DANMAKU *sortedMerge(DANMAKU *a, DANMAKU *b, STATUS *const status) {
+    DANMAKU *result = NULL;
+
+    if (a == NULL)
+        return b;
+    else if (b == NULL)
+        return a;
+
+    if (a->time <= b->time) {
+        result = a;
+        result->next = sortedMerge(a->next, b, status);
+    } else {
+        result = b;
+        result->next = sortedMerge(a, b->next, status);
+    }
+
+    if (status != NULL) {
+        status->completedNum++;
+    }
+
+    return result;
+}
+
+// Merge sort for linked list
+void mergeSort(DANMAKU **headRef, STATUS *const status) {
+    DANMAKU *head = *headRef;
+    DANMAKU *a;
+    DANMAKU *b;
+
+    if ((head == NULL) || (head->next == NULL)) {
+        return;
+    }
+
+    splitList(head, &a, &b);
+
+    mergeSort(&a, status);
+    mergeSort(&b, status);
+
+    *headRef = sortedMerge(a, b, status);
+}
 
 /*
- * 排序整个链表（桶排序）
+ * 排序整个链表
  * 参数：要排序的链表头
  * 返回值：
  * 0 正常退出
  * 1 弹幕池为空
- * 2 桶空间申请失败
   */
-int sortList(DANMAKU **listHead, STATUS *const status)
-{
-    /* 刷新status */
-    if (status != NULL)
-    {
-        status -> function = (void *)sortList;
-        (status -> completedNum) = 0;
-        status -> isDone = FALSE;
+int sortList(DANMAKU **listHead, STATUS *const status) {
+    if (status != NULL) {
+        status->function = (void *)sortList;
+        status->completedNum = 0;
+        status->isDone = FALSE;
     }
 
-    if(*listHead == NULL)
-    {
+    if (*listHead == NULL) {
         #if PRINT_ERR == TRUE
         printf("\n[X] 弹幕池为空");
         #endif
         return 1;
     }
 
-    DANMAKU **bucket = NULL, *now = NULL, *last = NULL, *ptr = NULL;
-    int cnt, index, danmakuNum = 0, bucketNum = 0;
-    int max, min;
-    BOOL isSorted = TRUE;
+    mergeSort(listHead, status);
 
-    /* 统计弹幕数量并找出最大最小值 */
-    now = *listHead;
-    while(now != NULL)
-    {
-        if(now == *listHead)
-        {
-            max = min = (*listHead) -> time;
-        }
-        else
-        {
-            if(now -> time > max)
-            {
-                max = now -> time;
-            }
-            else if(now -> time < min)
-            {
-                min = now -> time;
-            }
-        }
-
-        if (isSorted == TRUE && now -> next != NULL && now->time > now->next->time)
-        {
-            isSorted = FALSE;
-        }
-        danmakuNum++;
-        now = now -> next;
-    }
-
-    /* 如果本来就排序好了直接退出 */
-    if (isSorted == TRUE)
-    {
-        return 0;
-    }
-
-    /* 申请桶空间并清0 */
-    now = *listHead;
-    bucketNum = danmakuNum / 128 + 1;
-    if((bucket = (DANMAKU **)malloc(sizeof(DANMAKU *) * bucketNum)) == NULL)
-    {
-        #if PRINT_ERR == TRUE
-        printf("\n[X] 申请内存空间失败");
-        #endif
-        return 2;
-    }
-    memset(bucket, 0, sizeof(DANMAKU *) * bucketNum);
-
-    /* 入桶 */
-    while(*listHead != NULL)
-    {
-        index = bucketNum * (now->time - min) / (max - min + 1);
-        if (index >= bucketNum || index < 0) {
-            /* 溢出非法索引处理 */
-            index = bucketNum - 1;
-        }
-
-        *listHead = (*listHead) -> next;
-        if(bucket[index] == NULL)
-        {/* 如果该桶为空则将新节点指针填入 */
-            bucket[index] = now;
-            now -> next = NULL;
-        }
-        else
-        {
-            ptr = last = bucket[index];
-            if(now -> time < ptr -> time)
-            {/* 判断是否为该桶最小值 */
-                now -> next = ptr;
-                bucket[index] = now;
-            }
-            else
-            {
-                ptr = ptr -> next;
-                while(ptr != NULL && now->time >= ptr->time)
-                {
-                    last = ptr;
-                    ptr = ptr -> next;
-                }
-                now -> next = ptr;
-                last -> next = now;
-            }
-        }
-        now = *listHead;
-
-        /* 刷新status */
-        if (status != NULL)
-        {
-            (status -> completedNum)++;
-        }
-    }/* 结束 while */
-
-    /* 出桶 */
-    now = *listHead = NULL;
-    for(cnt = 0; cnt < bucketNum; cnt++)
-    {
-        ptr = bucket[cnt];
-
-        if(ptr != NULL)
-        {
-            if(*listHead == NULL)
-            {
-                *listHead = now = ptr;
-            }
-            else
-            {
-                now -> next = ptr;
-            }
-            while(ptr -> next != NULL)
-            {
-                ptr = ptr -> next;
-            }
-            now = ptr;
-        }
-    }
-    free(bucket);
-
-    /* 刷新status */
-    if (status != NULL)
-    {
-        status -> isDone = TRUE;
+    if (status != NULL) {
+        status->isDone = TRUE;
     }
     return 0;
 }
