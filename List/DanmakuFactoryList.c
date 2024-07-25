@@ -26,6 +26,12 @@
 #include <stdlib.h>
 
 void splitList(DANMAKU *source, DANMAKU **frontRef, DANMAKU **backRef) {
+    if (source == NULL || source->next == NULL) {
+        *frontRef = source;
+        *backRef = NULL;
+        return;
+    }
+
     DANMAKU *fast;
     DANMAKU *slow;
     slow = source;
@@ -45,30 +51,34 @@ void splitList(DANMAKU *source, DANMAKU **frontRef, DANMAKU **backRef) {
 }
 // Merge two sorted linked lists
 DANMAKU *sortedMerge(DANMAKU *a, DANMAKU *b, STATUS *const status) {
-    DANMAKU *result = NULL;
+    DANMAKU dummy;
+    DANMAKU *tail = &dummy;
+    dummy.next = NULL;
 
-    if (a == NULL)
-        return b;
-    else if (b == NULL)
-        return a;
-
-    if (a->time <= b->time) {
-        result = a;
-        result->next = sortedMerge(a->next, b, status);
-    } else {
-        result = b;
-        result->next = sortedMerge(a, b->next, status);
+    while (a != NULL && b != NULL) {
+        if (a->time <= b->time) {
+            tail->next = a;
+            a = a->next;
+        } else {
+            tail->next = b;
+            b = b->next;
+        }
+        tail = tail->next;
+        if (status != NULL) {
+            status->completedNum++;
+        }
     }
 
-    if (status != NULL) {
-        status->completedNum++;
-    }
-
-    return result;
+    tail->next = (a == NULL) ? b : a;
+    return dummy.next;
 }
 
 // Merge sort for linked list
 void mergeSort(DANMAKU **headRef, STATUS *const status) {
+    if (headRef == NULL || *headRef == NULL) {
+        return;
+    }
+
     DANMAKU *head = *headRef;
     DANMAKU *a;
     DANMAKU *b;
@@ -105,12 +115,12 @@ int sortList(DANMAKU **listHead, STATUS *const status) {
         #endif
         return 1;
     }
-
     mergeSort(listHead, status);
 
     if (status != NULL) {
         status->isDone = TRUE;
     }
+    printf("\n[O] sort complete");
     return 0;
 }
 
