@@ -261,27 +261,32 @@ int readXml(const char *const ipFile, DANMAKU **head, const char *mode, const fl
             else if (strcmp(key, "level") == 0)
             {
                 getNextWord(&labelPtr, tempText, MAX_TEXT_LENGTH, ' ', TRUE);
+                giftPriceUnit = 1;
                 switch (atoi(deQuotMarks(tempText)))
                 {
                 case 1:
                     // 总督
                     gift.duration = 19998000;
+                    gift.price = 19998;
                     break;
                 case 2:
                     // 提督
                     gift.duration = 1998000;
+                    gift.price = 1998;
                     break;
                 case 3:
                     // 舰长
                     gift.duration = 198000;
+                    gift.price = 198;
                     break;
                 default:
                     // 未知
                     gift.duration = 18000;
+                    gift.price = 0;
                     break;
                 }
             }
-            // BililiveRecorder
+            // BililiveRecorder，开启记录raw
             else if (strcmp(key, "raw") == 0)
             {
                 if(hasGiftInfo == TRUE) 
@@ -345,10 +350,11 @@ int readXml(const char *const ipFile, DANMAKU **head, const char *mode, const fl
                 }
 
             }
-            // blrec
+            // blrec的礼物，不包含sc和guard
             else if (strcmp(key, "cointype") == 0) {
                 char coinTypeValue[VALUE_LEN];
                 getNextWord(&labelPtr, coinTypeValue, GIFT_NAME_LEN, ' ', TRUE);
+                deQuotMarks(coinTypeValue);
                 if (strcmp(coinTypeValue, "\xe9\x93\xb6\xe7\x93\x9c\xe5\xad\x90") == 0) {
                     giftPriceUnit = 0.0;
                 }
@@ -742,42 +748,41 @@ static char *xmlUnescape(char *const str)
 
     while (*srcPtr != '\0')
     {
-        if (*srcPtr == '&')
+        if (*srcPtr != '&')
         {
-            if (strncmp(srcPtr, "&amp;", 5) == 0)
-            {
-                *dstPtr++ = '&';
-                srcPtr += 5;
-            }
-            else if (strncmp(srcPtr, "&apos;", 6) == 0)
-            {
-                *dstPtr++ = '\'';
-                srcPtr += 6;
-            }
-            else if (strncmp(srcPtr, "&gt;", 4) == 0)
-            {
-                *dstPtr++ = '>';
-                srcPtr += 4;
-            }
-            else if (strncmp(srcPtr, "&lt;", 4) == 0)
-            {
-                *dstPtr++ = '<';
-                srcPtr += 4;
-            }
-            else if (strncmp(srcPtr, "&quot;", 6) == 0)
-            {
-                *dstPtr++ = '\"';
-                srcPtr += 6;
-            }
-            else
-            {
-                // 如果不是已知的转义序列，就原样复制
-                *dstPtr++ = *srcPtr++;
-            }
+            // 如果当前字符不是 '&'，就原样复制
+            *dstPtr++ = *srcPtr++;
+            continue;
+        }
+
+        if (strncmp(srcPtr, "&amp;", 5) == 0)
+        {
+            *dstPtr++ = '&';
+            srcPtr += 5;
+        }
+        else if (strncmp(srcPtr, "&apos;", 6) == 0)
+        {
+            *dstPtr++ = '\'';
+            srcPtr += 6;
+        }
+        else if (strncmp(srcPtr, "&gt;", 4) == 0)
+        {
+            *dstPtr++ = '>';
+            srcPtr += 4;
+        }
+        else if (strncmp(srcPtr, "&lt;", 4) == 0)
+        {
+            *dstPtr++ = '<';
+            srcPtr += 4;
+        }
+        else if (strncmp(srcPtr, "&quot;", 6) == 0)
+        {
+            *dstPtr++ = '\"';
+            srcPtr += 6;
         }
         else
         {
-            // 如果当前字符不是 '&'，就原样复制
+            // 如果不是已知的转义序列，就原样复制
             *dstPtr++ = *srcPtr++;
         }
     }
