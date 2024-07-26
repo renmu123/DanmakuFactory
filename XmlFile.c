@@ -260,7 +260,6 @@ int readXml(const char *const ipFile, DANMAKU **head, const char *mode, const fl
             else if (strcmp(key, "level") == 0)
             {
                 getNextWord(&labelPtr, tempText, MAX_TEXT_LENGTH, ' ', TRUE);
-                giftPriceUnit = 1;
                 switch (atoi(deQuotMarks(tempText)))
                 {
                 case 1:
