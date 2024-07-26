@@ -102,11 +102,14 @@ void mergeSort(DANMAKU **headRef, STATUS *const status) {
  * 0 正常退出
  * 1 弹幕池为空
   */
-int sortList(DANMAKU **listHead, STATUS *const status) {
-    if (status != NULL) {
-        status->function = (void *)sortList;
-        status->completedNum = 0;
-        status->isDone = FALSE;
+int sortList(DANMAKU **listHead, STATUS *const status)
+{
+    /* 刷新status */
+    if (status != NULL)
+    {
+        status -> function = (void *)&sortList;
+        (status -> completedNum) = 0;
+        status -> isDone = FALSE;
     }
 
     if (*listHead == NULL) {
@@ -117,8 +120,116 @@ int sortList(DANMAKU **listHead, STATUS *const status) {
     }
     mergeSort(listHead, status);
 
-    if (status != NULL) {
-        status->isDone = TRUE;
+    DANMAKU *now = NULL;
+    BOOL isSorted = TRUE;
+
+    /* 统计弹幕数量并找出最大最小值 */
+    int danmakuNum; // 弹幕条数
+    int max;        // 最大值
+    int min;        // 最小值
+    for (now = *listHead, danmakuNum = 0, max = min = now -> time; now != NULL; now = now -> next, ++danmakuNum)
+    {
+        if(now -> time > max)
+        {
+            max = now -> time;
+        }
+        else if(now -> time < min)
+        {
+            min = now -> time;
+        }
+
+        if (isSorted == TRUE && now -> next != NULL && now->time > now->next->time)
+        {
+            isSorted = FALSE;
+        }
+    }
+
+    /* 如果本来就排序好了直接退出 */
+    if (isSorted == TRUE)
+    {
+        return 0;
+    }
+
+    /* 申请桶空间并清0 */
+    int bucketNum = danmakuNum / 128 + 1;
+    DANMAKU **bucket = NULL;
+    if((bucket = (DANMAKU **)malloc(sizeof(DANMAKU *) * bucketNum)) == NULL)
+    {
+        #if PRINT_ERR == TRUE
+        printf("\n[X] 申请内存空间失败");
+        #endif
+        return 2;
+    }
+    memset(bucket, 0, sizeof(DANMAKU *) * bucketNum);
+
+    /* 入桶 */
+    int index;  // 桶号
+    double denominator = max - min + 1;
+    DANMAKU *ptr;
+    DANMAKU *last;
+    do{
+        now = *listHead;
+        index = (int)(bucketNum * ((now->time - min) / denominator));
+        if (index >= bucketNum || index < 0) {
+            /* 溢出非法索引处理 */
+            index = bucketNum - 1;
+        }
+
+        *listHead = (*listHead) -> next;
+        if(bucket[index] == NULL)
+        {/* 如果该桶为空则将新节点指针填入 */
+            bucket[index] = now;
+            now -> next = NULL;
+        }
+        else
+        {
+            ptr = last = bucket[index];
+            if(now -> time <= ptr -> time)
+            {/* 判断是否为该桶最小值 */
+                bucket[index] = now;
+            }
+            else
+            {
+                while ((ptr = ptr -> next) != NULL && now->time > ptr->time)
+                {
+                    last = ptr;
+                }
+                last -> next = now;
+            }
+            now -> next = ptr;
+        }
+
+        /* 刷新status */
+        if (status != NULL)
+        {
+            (status -> completedNum)++;
+        }
+    } while (*listHead != NULL);
+
+    /* 出桶 */
+    now = *listHead = bucket[0];
+    while (now->next != NULL) {
+        now = now->next;
+    }
+    for (int cnt = 1; cnt < bucketNum; cnt++)
+    {
+        ptr = bucket[cnt];
+        if(ptr != NULL)
+        {
+            now -> next = ptr;
+            while(ptr -> next != NULL)
+            {
+                ptr = ptr -> next;
+            }
+            now = ptr;
+        }
+    }
+    free(bucket);
+
+    /* 刷新status */
+    if (status != NULL)
+    {
+        status -> isDone = TRUE;
     }
     printf("\n[O] sort complete");
     return 0;
