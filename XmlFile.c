@@ -383,6 +383,14 @@ int readXml(const char *const ipFile, DANMAKU **head, const char *mode, const fl
                 cnt++;
             }
             tempText[cnt] = '\0';
+            // 如果文本存在\n，替换为空格，否则写入ass会有错误
+            for (int i = 0; i < cnt; i++)
+            {
+                if (tempText[i] == '\n')
+                {
+                    tempText[i] = ' ';
+                }
+            }
             
             /* 申请文本部分空间 */
             if ((text = (char *)malloc((strlen(tempText)+1) * sizeof(char))) == NULL)
