@@ -13,3 +13,6 @@ obj/
 # CMake
 build/
 bin/
+
+# wasm
+DanmakuFactory.wasm

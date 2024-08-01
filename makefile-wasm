@@ -1,0 +1,19 @@
+# Define the paths and compiler
+CC = $(WASI_SDK_PATH)/bin/clang --target=wasm32-wasi --sysroot=$(WASI_SDK_PATH)/share/wasi-sysroot -Wl,--export-all
+
+# Compilation flags
+CFLAGS = -O2
+
+# Output and object files
+OutPut = DanmakuFactory.wasm
+Object = String/DanmakuFactoryString.c List/DanmakuFactoryList.c Config/Config.c TemplateFile/TemplateFile.c AssFile/AssStringProcessing.c AssFile/AssFile.c XmlFile.c JsonFile.c main.c
+
+# Rule to link the final executable
+$(OutPut): $(Object)
+	$(CC) $(CFLAGS) -o $(OutPut) $(Object)
+
+
+# Clean rule
+# .PHONY: clean
+# clean:
+# 	-rm -f $(OutPut) $(Object)

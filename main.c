@@ -78,6 +78,11 @@ static CONFIG defaultConfig =
     0,              /* 统计模式 */
 };
 
+void hello()
+{
+    printf("hello world\n");
+}
+
 int main(int argc, char **argv)
 {
     FINFO outfile;
