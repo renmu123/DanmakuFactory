@@ -78,9 +78,9 @@ static CONFIG defaultConfig =
     0,              /* 统计模式 */
 };
 
-void hello()
+void hello(char *name)
 {
-    printf("hello world\n");
+    printf("hello world,%s\n", name);
 }
 
 int main(int argc, char **argv)
@@ -109,6 +109,7 @@ int main(int argc, char **argv)
     tempStr[0] = '\0';
 #ifdef _WIN32
     GetModuleFileName(0, tempStr, MAX_TEXT_LENGTH);
+    SetConsoleOutputCP(CP_UTF8);
 #else
     readlink("/proc/self/exe", tempStr, MAX_TEXT_LENGTH);
 #endif
@@ -1216,9 +1217,13 @@ int main(int argc, char **argv)
         }
     }
     
+    char *outputStr = NULL;
     if (!strcmp("ass", outfile.template))
     {
-        returnValue = writeAss(outfile.fileName, danmakuPool, config, NULL, NULL);
+        returnValue = writeAss(outfile.fileName, danmakuPool, config, NULL, NULL, &outputStr);
+        printf("111ass %s", outputStr);
+        return outputStr;
+
         /* 解析百位 */
         switch (returnValue / 100)
         {

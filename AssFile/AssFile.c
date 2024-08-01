@@ -37,6 +37,58 @@ static char *getActionStr(char *dstBuff,int shiftX, int shiftY, int startPosX, i
 static int findMin(int *array, const int numOfLine, const int stopSubScript, const int mode);
 static int getEndTime(DANMAKU *danmakuPtr, const int rollTime, const int holdTime);
 
+// 自定义数据结构
+typedef struct {
+    FILE *file;     // 指向临时文件的FILE指针
+    char *buffer;   // 用于存储数据的缓冲区
+    size_t size;    // 缓冲区的大小
+} CustomFile;
+
+// 初始化自定义数据结构
+CustomFile *custom_file_open() {
+    CustomFile *cf = (CustomFile *)malloc(sizeof(CustomFile));
+    if (!cf) {
+        return NULL;
+    }
+    cf->file = tmpfile();
+    if (!cf->file) {
+        free(cf);
+        return NULL;
+    }
+    cf->buffer = NULL;
+    cf->size = 0;
+    return cf;
+}
+
+// 关闭自定义数据结构
+void custom_file_close(CustomFile *cf) {
+    if (cf) {
+        if (cf->file) {
+            fclose(cf->file);
+        }
+        free(cf->buffer);
+        free(cf);
+    }
+}
+
+// 从临时文件读取数据到缓冲区
+void custom_file_read(CustomFile *cf) {
+    if (!cf || !cf->file) {
+        return;
+    }
+    fseek(cf->file, 0, SEEK_END);
+    cf->size = ftell(cf->file);
+    fseek(cf->file, 0, SEEK_SET);
+
+    cf->buffer = (char *)malloc(cf->size + 1);
+    if (!cf->buffer) {
+        return;
+    }
+
+    fread(cf->buffer, 1, cf->size, cf->file);
+    cf->buffer[cf->size] = '\0'; // Null-terminate the string
+}
+
 /* 
  * 读取ass文件到弹幕池
  * 参数：文件名/弹幕池/读取模式/字幕部分输出/时轴偏移/状态
@@ -1101,11 +1153,13 @@ static void mergeGiftDanmaku(DANMAKU *head, int giftMergeTolerance) {
   */
 int writeAss(const char *const fileName, DANMAKU *danmakuHead,
              const CONFIG config, const ASSFILE *const subPart,
-             STATUS *const status
+             STATUS *const status, char **output
             )
 {
 
-    FILE *fptr = fopen(fileName, "w");
+    // FILE *fptr = fopen(fileName, "w");
+    CustomFile *cf = custom_file_open();
+    FILE *fptr = cf->file;
     
     int returnValue = 0;
     
@@ -1239,8 +1293,17 @@ int writeAss(const char *const fileName, DANMAKU *danmakuHead,
                                    );
     
     //TODO:添加函数writeAssSubPart()
-    
-    fclose(fptr);
+    custom_file_read(cf);
+        if (cf->buffer) {
+        *output = (char *)malloc(cf->size + 1);
+        if (*output) {
+            strcpy(*output, cf->buffer);
+        }
+    }
+    custom_file_close(cf);
+    // fclose(fptr);
+
+
     
     return returnValue;
 }

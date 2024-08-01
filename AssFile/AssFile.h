@@ -197,7 +197,7 @@ extern int readAss(const char *const fileName, DANMAKU **danmakuHead, const char
                   );
 extern int writeAss(const char *const fileName, DANMAKU *danmakuHead,
     const CONFIG config, const ASSFILE *const subPart,
-    STATUS *const status
+    STATUS *const status, char **output
 );
 
 /* 不常用的ass操作函数 */
