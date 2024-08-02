@@ -54,7 +54,7 @@ static void errorExit(FILE *ipF, DANMAKU *head, DANMAKU *ptr);
  * 5 6 7 内存空间申请失败
  * 8 文件未能按正确格式读入
   */
-int readXml(const char *const ipFile, DANMAKU **head, const char *mode, const float timeShift, STATUS *const status)
+int readXml(const char *const xmlContent, DANMAKU **head, const char *mode, const float timeShift, STATUS *const status)
 {
     FILE *ipF;
     DANMAKU *tailNode = NULL;
@@ -68,9 +68,9 @@ int readXml(const char *const ipFile, DANMAKU **head, const char *mode, const fl
         status -> isDone = FALSE;
     }
     
-    /* 打开文件 */
-    if ((ipF = fopen(ipFile, "r")) == NULL)
-    {
+    /* 将字符串内容转换为文件指针 */
+    ipF = fmemopen((void *)xmlContent, strlen(xmlContent), "r");
+    if (ipF == NULL) {
         return 1; /* 文件打开失败 */
     }
     

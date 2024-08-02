@@ -104,6 +104,31 @@ char *hello(char *name)
     return name;
 }
 
+char *readFileToString(const char *filename) {
+    FILE *file = fopen(filename, "r");
+    if (file == NULL) {
+        printf("无法打开文件: %s\n", filename);
+        return NULL;
+    }
+
+    fseek(file, 0, SEEK_END);
+    long fileSize = ftell(file);
+    fseek(file, 0, SEEK_SET);
+
+    char *content = (char *)malloc(fileSize + 1);
+    if (content == NULL) {
+        printf("内存分配失败\n");
+        fclose(file);
+        return NULL;
+    }
+
+    fread(content, 1, fileSize, file);
+    content[fileSize] = '\0';
+
+    fclose(file);
+    return content;
+}
+
 char *test(char *input)
 {
     CONFIG config = defaultConfig;
@@ -112,17 +137,11 @@ char *test(char *input)
     DANMAKU *danmakuPool = NULL;
 
     // prinf input file value
-    FILE *fp = fopen(input, "r");
-    if (fp == NULL) {
-        printf("open file failed:%s\n", input);
-        return 0;
+    char *xmlContent;
+    xmlContent = readFileToString(input);
+    if(xmlContent == NULL) {
+        return NULL;
     }
-    char buf[4096];
-    while (fgets(buf, 4096, fp) != NULL) {
-        printf("%s", buf);
-    }
-    fclose(fp);
-
     
     returnValue = readXml(input, &danmakuPool, "a", 0.0, &status);
 
