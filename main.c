@@ -98,9 +98,10 @@ AutoString* initAutoString(size_t initialSize) {
 }
 
 
-void hello(char *name)
+char *hello(char *name)
 {
     printf("hello world,%s\n", name);
+    return name;
 }
 
 char *test(char *input)
@@ -109,6 +110,19 @@ char *test(char *input)
         int returnValue;
     STATUS status;
     DANMAKU *danmakuPool = NULL;
+
+    // prinf input file value
+    FILE *fp = fopen(input, "r");
+    if (fp == NULL) {
+        printf("open file failed:%s\n", input);
+        return 0;
+    }
+    char buf[4096];
+    while (fgets(buf, 4096, fp) != NULL) {
+        printf("%s", buf);
+    }
+    fclose(fp);
+
     
     returnValue = readXml(input, &danmakuPool, "a", 0.0, &status);
 
@@ -136,6 +150,11 @@ char *test(char *input)
     return outputStr->str;
 }
 
+// int main()
+// {
+//     printf("hello world\n");
+//     return 0;
+// }
 
 int main(int argc, char **argv)
 {

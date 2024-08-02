@@ -1,5 +1,5 @@
 # Define the paths and compiler
-CC = $(WASI_SDK_PATH)/bin/clang --target=wasm32-wasi --sysroot=$(WASI_SDK_PATH)/share/wasi-sysroot -Wl,--export-all
+CC = $(WASI_SDK_PATH)/bin/clang --target=wasm32-wasi --sysroot=$(WASI_SDK_PATH)/share/wasi-sysroot -Wl,--export-all -mexec-model=reactor
 
 # Compilation flags
 CFLAGS = -O2
