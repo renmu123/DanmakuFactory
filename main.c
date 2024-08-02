@@ -125,6 +125,31 @@ char *readFileToString(const char *filename) {
 
 char *convertXml2ass(char *xmlContent, CONFIG *config)
 {
+    // printf("resolution: %d %d\n", config->resolution.x, config->resolution.y);
+    // printf("displayarea: %f\n", config->displayarea);
+    // printf("scrollarea: %f\n", config->scrollarea);
+    // printf("scrolltime: %f\n", config->scrolltime);
+    // printf("fixtime: %f\n", config->fixtime);
+    // printf("density: %d\n", config->density);
+    // printf("fontsize: %d\n", config->fontsize);
+    // printf("fontname: %s\n", config->fontname);
+    // printf("opacity: %d\n", config->opacity);
+    // printf("outline: %f\n", config->outline);
+    // printf("shadow: %f\n", config->shadow);
+    // printf("bold: %d\n", config->bold);
+    // printf("saveBlockedPart: %d\n", config->saveBlockedPart);
+    // printf("showUserNames: %d\n", config->showUserNames);
+    // printf("showMsgBox: %d\n", config->showMsgBox);
+    // printf("msgBoxSize: %d %d\n", config->msgBoxSize.x, config->msgBoxSize.y);
+    // printf("msgBoxPos: %d %d\n", config->msgBoxPos.x, config->msgBoxPos.y);
+    // printf("msgboxFontsize: %d\n", config->msgboxFontsize);
+    // printf("msgboxDuration: %f\n", config->msgboxDuration);
+    // printf("giftMinPrice: %f\n", config->giftMinPrice);
+    // printf("giftMergeTolerance: %f\n", config->giftMergeTolerance);
+    // printf("blockmode: %d\n", config->blockmode);
+    // printf("statmode: %d\n", config->statmode);
+
+    // CONFIG config = defaultConfig;
     int returnValue;
     STATUS status;
     DANMAKU *danmakuPool = NULL;
