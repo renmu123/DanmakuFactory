@@ -1295,20 +1295,6 @@ int main(int argc, char **argv)
     if (!strcmp("ass", outfile.template))
     {
         returnValue = writeAss(outfile.fileName, danmakuPool, config, NULL, NULL, outputStr);
-        printf("111ass %s", outputStr->str);
-
-        // 写入output filename
-        FILE *fptr = fopen(outfile.fileName, "w");
-        if (fptr == NULL) {
-            fprintf(stderr, "\nERROR"
-                            "\nFailed to open file \"%s\" for writing.\n", outfile.fileName);
-            return 0;
-        }
-        fwrite(outputStr->str, sizeof(char), outputStr->length, fptr);
-        fclose(fptr);
-        
-        
-        // return outputStr;
 
         /* 解析百位 */
         switch (returnValue / 100)
@@ -1362,6 +1348,16 @@ int main(int argc, char **argv)
                 break;
         }
         /* 个位函数错误信息已经被以上过滤完毕 无需重新报错 */
+
+        // 写入output filename
+        FILE *fptr = fopen(outfile.fileName, "w");
+        if (fptr == NULL) {
+            fprintf(stderr, "\nERROR"
+                            "\nFailed to open file \"%s\" for writing.\n", outfile.fileName);
+            return 0;
+        }
+        fwrite(outputStr->str, sizeof(char), outputStr->length, fptr);
+        fclose(fptr);
     }
     else if (!strcmp("xml", outfile.template))
     {
