@@ -1,9 +1,11 @@
 {
-    "files.associations": {
-        "cdanmakufactory.h": "c",
-        "danmakufactorylist.h": "c",
-        "assfile.h": "c",
-        "templatefile.h": "c",
-        "assstringprocessing.h": "c"
-    }
+  "files.associations": {
+    "*.inc": "php",
+    "cdanmakufactory.h": "c",
+    "danmakufactorylist.h": "c",
+    "assfile.h": "c",
+    "templatefile.h": "c",
+    "assstringprocessing.h": "c",
+    "stdarg.h": "c"
+  }
 }

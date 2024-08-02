@@ -78,10 +78,64 @@ static CONFIG defaultConfig =
     0,              /* 统计模式 */
 };
 
+
+// 初始化函数
+AutoString* initAutoString(size_t initialSize) {
+    AutoString *aStr = (AutoString *)malloc(sizeof(AutoString));
+    if (!aStr) {
+        fprintf(stderr, "Memory allocation failed\n");
+        exit(1);
+    }
+    aStr->str = (char *)malloc(initialSize * sizeof(char));
+    if (!aStr->str) {
+        fprintf(stderr, "Memory allocation failed\n");
+        exit(1);
+    }
+    aStr->str[0] = '\0';
+    aStr->size = initialSize;
+    aStr->length = 0;
+    return aStr;
+}
+
+
 void hello(char *name)
 {
     printf("hello world,%s\n", name);
 }
+
+char *test(char *input)
+{
+    CONFIG config = defaultConfig;
+        int returnValue;
+    STATUS status;
+    DANMAKU *danmakuPool = NULL;
+    
+    returnValue = readXml(input, &danmakuPool, "a", 0.0, &status);
+
+    /* 屏蔽 */
+    blockByType(danmakuPool, config.blockmode, (const char **)config.blocklist);
+    sortList(&danmakuPool, NULL);
+    // char *str = (char *)malloc(100);
+    // strcpy(str, "hello ");
+    // strcat(str, name);
+    AutoString *outputStr = initAutoString(1024);
+
+    char *outputFilename = "hello";
+    returnValue = writeAss(outputFilename, danmakuPool, config, NULL, NULL, outputStr);
+    printf("111ass %s", outputStr->str);
+
+    // // 写入output filename
+    // FILE *fptr = fopen(outfile.fileName, "w");
+    // if (fptr == NULL) {
+    //     fprintf(stderr, "\nERROR"
+    //                     "\nFailed to open file \"%s\" for writing.\n", outfile.fileName);
+    //     return 0;
+    // }
+    // fwrite(outputStr->str, sizeof(char), outputStr->length, fptr);
+    // fclose(fptr);
+    return outputStr->str;
+}
+
 
 int main(int argc, char **argv)
 {
@@ -1217,12 +1271,25 @@ int main(int argc, char **argv)
         }
     }
     
-    char *outputStr = NULL;
+    // char *outputStr = (char *)malloc(10 * 1024 * 1024 * 10);
+    AutoString *outputStr = initAutoString(1024);
     if (!strcmp("ass", outfile.template))
     {
-        returnValue = writeAss(outfile.fileName, danmakuPool, config, NULL, NULL, &outputStr);
-        printf("111ass %s", outputStr);
-        return outputStr;
+        returnValue = writeAss(outfile.fileName, danmakuPool, config, NULL, NULL, outputStr);
+        printf("111ass %s", outputStr->str);
+
+        // 写入output filename
+        FILE *fptr = fopen(outfile.fileName, "w");
+        if (fptr == NULL) {
+            fprintf(stderr, "\nERROR"
+                            "\nFailed to open file \"%s\" for writing.\n", outfile.fileName);
+            return 0;
+        }
+        fwrite(outputStr->str, sizeof(char), outputStr->length, fptr);
+        fclose(fptr);
+        
+        
+        // return outputStr;
 
         /* 解析百位 */
         switch (returnValue / 100)

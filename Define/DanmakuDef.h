@@ -140,6 +140,13 @@ typedef struct SpecialDanmakuPart SPPART;
 typedef struct UserPart USERPART;
 typedef struct GiftPart GIFTPART;
 
+// 可拓展字符串
+typedef struct {
+    char *str;  // 字符数组
+    size_t size; // 当前分配的大小
+    size_t length; // 当前字符串长度
+} AutoString;
+
 #ifdef __cplusplus
 }
 #endif

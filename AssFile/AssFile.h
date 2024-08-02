@@ -197,7 +197,7 @@ extern int readAss(const char *const fileName, DANMAKU **danmakuHead, const char
                   );
 extern int writeAss(const char *const fileName, DANMAKU *danmakuHead,
     const CONFIG config, const ASSFILE *const subPart,
-    STATUS *const status, char **output
+    STATUS *const status, AutoString *output
 );
 
 /* 不常用的ass操作函数 */
@@ -205,9 +205,9 @@ extern int readAssFile(ASSFILE *assFile, const char *const fileName);
 extern int assFileToDanmaku(ASSFILE *inputSub, DANMAKU **danmakuHead, const char *mode, ASSFILE *outputSub, const float timeShift,
     STATUS *const status
 );
-extern void writeAssStylesPart(FILE *opF, const int numOfStyles, STYLE *const styles);
-extern int writeAssDanmakuPart(FILE *opF, DANMAKU *head, CONFIG config, STATUS *const status);
-extern int writeAssStatPart(FILE *opF, DANMAKU *head, int mode, const int rollTime, const int holdTime,
+extern void writeAssStylesPart(AutoString *output, const int numOfStyles, STYLE *const styles);
+extern int writeAssDanmakuPart(AutoString *output, DANMAKU *head, CONFIG config, STATUS *const status);
+extern int writeAssStatPart(AutoString *output, DANMAKU *head, int mode, const int rollTime, const int holdTime,
     const int density, const int blockMode
 );
 

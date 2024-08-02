@@ -23,70 +23,64 @@
 
 #include "AssFile.h"
 #include "AssStringProcessing.h"
+#include <stdarg.h>
 
-static int printStatDataStr(FILE *filePtr, const int startTime, const int endTime, const int posX,
+static int printStatDataStr(AutoString *output, const int startTime, const int endTime, const int posX,
     const int posY, const char *effect, const char *str);
-static int printStatDataInt(FILE *filePtr, const int startTime, const int endTime, const int posX,
+static int printStatDataInt(AutoString *output, const int startTime, const int endTime, const int posX,
     const int posY, char *effect, const int data);
-static int printMessage(FILE *filePtr,
+static int printMessage(AutoString *output,
     int startPosX, int startPosY, int endPosX, int endPosY, int startTime, int endTime,
     int width, int fontSize, char *effect, DANMAKU *message);
-static int printTime(FILE *filePtr, int time, const char *endText);
+static int printTime(AutoString *output, int time, const char *endText);
 static int getMsgBoxHeight(DANMAKU *message, int fontSize, int width);
 static char *getActionStr(char *dstBuff,int shiftX, int shiftY, int startPosX, int startPosY, int endPosX, int endPosY);
 static int findMin(int *array, const int numOfLine, const int stopSubScript, const int mode);
 static int getEndTime(DANMAKU *danmakuPtr, const int rollTime, const int holdTime);
 
-// 自定义数据结构
-typedef struct {
-    FILE *file;     // 指向临时文件的FILE指针
-    char *buffer;   // 用于存储数据的缓冲区
-    size_t size;    // 缓冲区的大小
-} CustomFile;
 
-// 初始化自定义数据结构
-CustomFile *custom_file_open() {
-    CustomFile *cf = (CustomFile *)malloc(sizeof(CustomFile));
-    if (!cf) {
-        return NULL;
+// 扩展内存函数
+void expandAutoString(AutoString *aStr, size_t newSize) {
+    aStr->str = (char *)realloc(aStr->str, newSize * sizeof(char));
+    if (!aStr->str) {
+        fprintf(stderr, "Memory allocation failed\n");
+        exit(1);
     }
-    cf->file = tmpfile();
-    if (!cf->file) {
-        free(cf);
-        return NULL;
-    }
-    cf->buffer = NULL;
-    cf->size = 0;
-    return cf;
+    aStr->size = newSize;
 }
 
-// 关闭自定义数据结构
-void custom_file_close(CustomFile *cf) {
-    if (cf) {
-        if (cf->file) {
-            fclose(cf->file);
-        }
-        free(cf->buffer);
-        free(cf);
+// 添加字符函数（使用 snprintf）
+void appendCharToAutoString(AutoString *aStr, char c) {
+    if (aStr->length + 1 >= aStr->size) {
+        expandAutoString(aStr, aStr->size * 2); // 扩展内存
     }
+    snprintf(aStr->str + aStr->length, aStr->size - aStr->length, "%c", c);
+    aStr->length++;
 }
 
-// 从临时文件读取数据到缓冲区
-void custom_file_read(CustomFile *cf) {
-    if (!cf || !cf->file) {
-        return;
-    }
-    fseek(cf->file, 0, SEEK_END);
-    cf->size = ftell(cf->file);
-    fseek(cf->file, 0, SEEK_SET);
+// 添加格式化字符串（替代 fprintf）
+void appendFormattedToAutoString(AutoString *aStr, const char *format, ...) {
+    va_list args;
+    va_start(args, format);
 
-    cf->buffer = (char *)malloc(cf->size + 1);
-    if (!cf->buffer) {
-        return;
+    size_t availableSize = aStr->size - aStr->length;
+    int neededSize = vsnprintf(aStr->str + aStr->length, availableSize, format, args);
+    va_end(args);
+
+    if (neededSize >= availableSize) {
+        expandAutoString(aStr, aStr->size + neededSize + 1);
+        va_start(args, format);
+        vsnprintf(aStr->str + aStr->length, aStr->size - aStr->length, format, args);
+        va_end(args);
     }
 
-    fread(cf->buffer, 1, cf->size, cf->file);
-    cf->buffer[cf->size] = '\0'; // Null-terminate the string
+    aStr->length += neededSize;
+}
+
+// 释放内存函数
+void freeAutoString(AutoString *aStr) {
+    free(aStr->str);
+    free(aStr);
 }
 
 /* 
@@ -1153,13 +1147,11 @@ static void mergeGiftDanmaku(DANMAKU *head, int giftMergeTolerance) {
   */
 int writeAss(const char *const fileName, DANMAKU *danmakuHead,
              const CONFIG config, const ASSFILE *const subPart,
-             STATUS *const status, char **output
+             STATUS *const status, AutoString *output
             )
 {
 
     // FILE *fptr = fopen(fileName, "w");
-    CustomFile *cf = custom_file_open();
-    FILE *fptr = cf->file;
     
     int returnValue = 0;
     
@@ -1171,18 +1163,18 @@ int writeAss(const char *const fileName, DANMAKU *danmakuHead,
         status -> isDone = FALSE;
     }
     
-    if (fptr == NULL)
-    {
-        return 100;
-    }
+    // if (fptr == NULL)
+    // {
+    //     return 100;
+    // }
 
-#if defined(_WIN32)
-    unsigned char bom[] = {0xEF, 0xBB, 0xBF};
-    fwrite(bom, sizeof(unsigned char), 3, fptr);
-#endif
+// #if defined(_WIN32)
+//     unsigned char bom[] = {0xEF, 0xBB, 0xBF};
+//     fwrite(bom, sizeof(unsigned char), 3, fptr);
+// #endif
 
     /* 写info部分 */
-    fprintf(fptr, "[Script Info]\n"
+    appendFormattedToAutoString(output, "[Script Info]\n"
                   "ScriptType: v4.00+\n"
                   "Collisions: Normal\n"
                   "PlayResX: %d\n"
@@ -1195,7 +1187,7 @@ int writeAss(const char *const fileName, DANMAKU *danmakuHead,
     
     /* 写styles部分 */ 
     {
-        fprintf(fptr, "[V4+ Styles]\n"
+        appendFormattedToAutoString(output, "[V4+ Styles]\n"
                       "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, "
                       "OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, "
                       "ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, "
@@ -1218,38 +1210,38 @@ int writeAss(const char *const fileName, DANMAKU *danmakuHead,
         
         
         /* 样式设定 */
-        fprintf(fptr, "\nStyle: %s,%s,%d,%s,%s,%s,%s,%d,%d,%d,%d,%.2f,%.2f,%.2f,%.2f,%d,%.1f,%.1f,%d,%d,%d,%d,%d",
+        appendFormattedToAutoString(output, "\nStyle: %s,%s,%d,%s,%s,%s,%s,%d,%d,%d,%d,%.2f,%.2f,%.2f,%.2f,%d,%.1f,%.1f,%d,%d,%d,%d,%d",
                      "R2L", config.fontname, config.fontsize, primaryColour, "&H00FFFFFF", "&H00000000", "&H1E6A5149",
                      bold, 0, 0, 0, 100.00, 100.00, 0.00, 0.00, 1, config.outline, config.shadow, 8,
                      0, 0, 0, 1
                );
         
-        fprintf(fptr, "\nStyle: %s,%s,%d,%s,%s,%s,%s,%d,%d,%d,%d,%.2f,%.2f,%.2f,%.2f,%d,%.1f,%.1f,%d,%d,%d,%d,%d",
+        appendFormattedToAutoString(output, "\nStyle: %s,%s,%d,%s,%s,%s,%s,%d,%d,%d,%d,%.2f,%.2f,%.2f,%.2f,%d,%.1f,%.1f,%d,%d,%d,%d,%d",
                      "L2R", config.fontname, config.fontsize, primaryColour, "&H00FFFFFF", "&H00000000", "&H1E6A5149",
                      bold, 0, 0, 0, 100.00, 100.00, 0.00, 0.00, 1, config.outline, config.shadow, 8,
                      0, 0, 0, 1
                );
         
-        fprintf(fptr, "\nStyle: %s,%s,%d,%s,%s,%s,%s,%d,%d,%d,%d,%.2f,%.2f,%.2f,%.2f,%d,%.1f,%.1f,%d,%d,%d,%d,%d",
+        appendFormattedToAutoString(output, "\nStyle: %s,%s,%d,%s,%s,%s,%s,%d,%d,%d,%d,%.2f,%.2f,%.2f,%.2f,%d,%.1f,%.1f,%d,%d,%d,%d,%d",
                      "TOP", config.fontname, config.fontsize, primaryColour, "&H00FFFFFF", "&H00000000", "&H1E6A5149",
                      bold, 0, 0, 0, 100.00, 100.00, 0.00, 0.00, 1, config.outline, config.shadow, 8,
                      0, 0, 0, 1
                );
         
-        fprintf(fptr, "\nStyle: %s,%s,%d,%s,%s,%s,%s,%d,%d,%d,%d,%.2f,%.2f,%.2f,%.2f,%d,%.1f,%.1f,%d,%d,%d,%d,%d",
+        appendFormattedToAutoString(output, "\nStyle: %s,%s,%d,%s,%s,%s,%s,%d,%d,%d,%d,%.2f,%.2f,%.2f,%.2f,%d,%.1f,%.1f,%d,%d,%d,%d,%d",
                      "BTM", config.fontname, config.fontsize, primaryColour, "&H00FFFFFF", "&H00000000", "&H1E6A5149",
                      bold, 0, 0, 0, 100.00, 100.00, 0.00, 0.00, 1, config.outline, config.shadow, 8,
                      0, 0, 0, 1
                );
         
-        fprintf(fptr, "\nStyle: %s,%s,%d,%s,%s,%s,%s,%d,%d,%d,%d,%.2f,%.2f,%.2f,%.2f,%d,%.1f,%.1f,%d,%d,%d,%d,%d",
+        appendFormattedToAutoString(output, "\nStyle: %s,%s,%d,%s,%s,%s,%s,%d,%d,%d,%d,%.2f,%.2f,%.2f,%.2f,%d,%.1f,%.1f,%d,%d,%d,%d,%d",
                      "SP", config.fontname, config.fontsize, "&H00FFFFFF", "&H00FFFFFF", "&H00000000", "&H1E6A5149",
                      bold, 0, 0, 0, 100.00, 100.00, 0.00, 0.00, 1, config.outline, config.shadow, 7,
                      0, 0, 0, 1
                );
         float msgboxOutline = config.outline * config.msgboxFontsize / config.fontsize;
         float msgboxShadow = config.shadow * config.msgboxFontsize / config.fontsize;
-        fprintf(fptr, "\nStyle: %s,%s,%d,%s,%s,%s,%s,%d,%d,%d,%d,%.2f,%.2f,%.2f,%.2f,%d,%.1f,%.1f,%d,%d,%d,%d,%d",
+        appendFormattedToAutoString(output, "\nStyle: %s,%s,%d,%s,%s,%s,%s,%d,%d,%d,%d,%.2f,%.2f,%.2f,%.2f,%d,%.1f,%.1f,%d,%d,%d,%d,%d",
                      "message_box", config.fontname, config.msgboxFontsize, "&H00FFFFFF", "&H00FFFFFF", "&H00000000", "&H1E6A5149",
                      bold, 0, 0, 0, 100.00, 100.00, 0.00, 0.00, 1, msgboxOutline, msgboxShadow, 7,
                      0, 0, 0, 1
@@ -1257,7 +1249,7 @@ int writeAss(const char *const fileName, DANMAKU *danmakuHead,
         
         if (config.statmode != 0)
         {
-            fprintf(fptr, "\nStyle: %s,%s,%d,%s,%s,%s,%s,%d,%d,%d,%d,%.2f,%.2f,%.2f,%.2f,%d,%.1f,%.1f,%d,%d,%d,%d,%d",
+            appendFormattedToAutoString(output, "\nStyle: %s,%s,%d,%s,%s,%s,%s,%d,%d,%d,%d,%.2f,%.2f,%.2f,%.2f,%d,%.1f,%.1f,%d,%d,%d,%d,%d",
                      "danmakuFactory_stat", config.fontname, config.fontsize, "&H35FFFFFF", "&H35FFFFFF", "&H35000000", "&H356A5149",
                      0, 0, 0, 0, 100.00, 100.00, 0.00, 0.00, 0, 0.0, 0.0, 5,
                      0, 0, 0, 1
@@ -1271,11 +1263,11 @@ int writeAss(const char *const fileName, DANMAKU *danmakuHead,
     }
     
     /* 写events部分 */  
-    fprintf(fptr, "\n\n[Events]\n"
+    appendFormattedToAutoString(output, "\n\n[Events]\n"
                  "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text");
 
     returnValue *= 10;
-    returnValue += writeAssDanmakuPart(fptr, danmakuHead, config, status);
+    returnValue += writeAssDanmakuPart(output, danmakuHead, config, status);
     
     /* 刷新status */
     if (status != NULL)
@@ -1286,21 +1278,21 @@ int writeAss(const char *const fileName, DANMAKU *danmakuHead,
     }
     
     returnValue *= 10;
-    returnValue += writeAssStatPart(fptr, danmakuHead,
+    returnValue += writeAssStatPart(output, danmakuHead,
                                     config.statmode,
                                     config.scrolltime, config.fixtime,
                                     config.density, config.blockmode
                                    );
     
     //TODO:添加函数writeAssSubPart()
-    custom_file_read(cf);
-        if (cf->buffer) {
-        *output = (char *)malloc(cf->size + 1);
-        if (*output) {
-            strcpy(*output, cf->buffer);
-        }
-    }
-    custom_file_close(cf);
+    // custom_file_read(cf);
+    //     if (cf->buffer) {
+    //     *output = (char *)malloc(cf->size + 1);
+    //     if (*output) {
+    //         strcpy(*output, cf->buffer);
+    //     }
+    // }
+    // custom_file_close(cf);
     // fclose(fptr);
 
 
@@ -1313,12 +1305,12 @@ int writeAss(const char *const fileName, DANMAKU *danmakuHead,
  * 参数：输出文件指针/样式条数/样式结构体
  * 返回值：空 
   */
-void writeAssStylesPart(FILE *opF, const int numOfStyles, STYLE *const styles)
+void writeAssStylesPart(AutoString *output, const int numOfStyles, STYLE *const styles)
 {
     int cnt;
     for (cnt = 0; cnt < numOfStyles; cnt++)
     {
-        fprintf(opF, "\nStyle: %s,%s,%d,%s,%s,%s,%s,%d,%d,%d,%d,%.2f,%.2f,%.2f,%.2f,%d,%d,%d,%d,%d,%d,%d,%d",
+       appendFormattedToAutoString(output, "\nStyle: %s,%s,%d,%s,%s,%s,%s,%d,%d,%d,%d,%.2f,%.2f,%.2f,%.2f,%d,%d,%d,%d,%d,%d,%d,%d",
                     styles[cnt].name, styles[cnt].fontname, styles[cnt].fontsize, styles[cnt].primaryColour,
                     styles[cnt].secondaryColour, styles[cnt].outlineColor, styles[cnt].backColour,
                     styles[cnt].bold, styles[cnt].italic, styles[cnt].underline, styles[cnt].strikeout,
@@ -1334,7 +1326,7 @@ static inline void popComboList(MSGLIST *msgListPtr) {
     free(comboListPtr);
 }
 
-static inline void freeMessage(FILE *opF, const int width, const int fontSize, MSGLIST *msgListPtr) {
+static inline void freeMessage(AutoString *output, const int width, const int fontSize, MSGLIST *msgListPtr) {
     int startPosX, startPosY, startTime, deltaX, deltaY, deltaT;
     int msgEndTime, msgDeltaX, msgDeltaY;
     float ratio;
@@ -1354,7 +1346,7 @@ static inline void freeMessage(FILE *opF, const int width, const int fontSize, M
                 ratio = (msgEndTime - startTime) / (float)deltaT;
                 msgDeltaX = deltaX * ratio;
                 msgDeltaY = deltaY * ratio;
-                printMessage(opF, startPosX, startPosY, startPosX + msgDeltaX, startPosY + msgDeltaY,
+                printMessage(output, startPosX, startPosY, startPosX + msgDeltaX, startPosY + msgDeltaY,
                              startTime, msgEndTime,
                              width, fontSize, dlgListPtr->effect, msgListPtr->comboListHead->message);
                 startPosX += msgDeltaX;
@@ -1364,7 +1356,7 @@ static inline void freeMessage(FILE *opF, const int width, const int fontSize, M
                 msgEndTime = msgListPtr->comboListHead->message->time + msgListPtr->comboListHead->message->gift->duration;
             } while (msgEndTime < dlgListPtr->endTime);
         }
-        printMessage(opF, startPosX, startPosY, dlgListPtr->endPosX, dlgListPtr->endPosY,
+        printMessage(output, startPosX, startPosY, dlgListPtr->endPosX, dlgListPtr->endPosY,
                      startTime, dlgListPtr->endTime,
                      width, fontSize, dlgListPtr->effect, msgListPtr->comboListHead->message);
         msgListPtr->dlgListHead = dlgListPtr->nextNode;
@@ -1604,7 +1596,7 @@ static inline void appendEndMessage(const int msgStartTime, const int startTime,
     }
 }
 
-void writeAliveMessage(FILE *opF, COORDIN *resolution, COORDIN *msgBoxPos, COORDIN *msgBoxSize, char *msgBoxClip,
+void writeAliveMessage(AutoString *output, COORDIN *resolution, COORDIN *msgBoxPos, COORDIN *msgBoxSize, char *msgBoxClip,
                        const int msgFontSize, const int msgAnimationTime, const BOOL giftComboSwitch,
                        MSGLIST **msgListHead, MSGLIST **msgListTail,
                        int lastMsgEndTime, const int msgStartTime, const int msgEndTime) {
@@ -1723,7 +1715,7 @@ void writeAliveMessage(FILE *opF, COORDIN *resolution, COORDIN *msgBoxPos, COORD
                     *msgListTail = msgListPtr->lastNode;
                 }
                 amendMessage(msgListPtr, msgAnimationTime, resolution, msgBoxPos, msgBoxSize, msgBoxClip);
-                freeMessage(opF, msgBoxSize->x, msgFontSize, msgListPtr);
+                freeMessage(output, msgBoxSize->x, msgFontSize, msgListPtr);
             }
             // 根据不同消息的停留时长向下滚动
             if (msgListLastPtr != NULL) {
@@ -1785,7 +1777,7 @@ void writeAliveMessage(FILE *opF, COORDIN *resolution, COORDIN *msgBoxPos, COORD
  * 3 4 5 6 7 8 申请内存空间失败
  * 9 写文件时发生错误 
   */
-int writeAssDanmakuPart(FILE *opF, DANMAKU *head, CONFIG config, STATUS *const status)
+int writeAssDanmakuPart(AutoString *output, DANMAKU *head, CONFIG config, STATUS *const status)
 {
     COORDIN resolution = config.resolution;
     const int fontSize = config.fontsize;
@@ -1814,15 +1806,15 @@ int writeAssDanmakuPart(FILE *opF, DANMAKU *head, CONFIG config, STATUS *const s
         status -> isDone = FALSE;
     }
     
-    if(head == NULL || opF == NULL)
-    {
-        return 1;
-    }
+    // if(head == NULL || opF == NULL)
+    // {
+    //     return 1;
+    // }
     
-    if(opF == NULL)
-    {
-        return 2;
-    }
+    // if(opF == NULL)
+    // {
+    //     return 2;
+    // }
     
     /* 临时变量 */
     int cnt;
@@ -1869,20 +1861,20 @@ int writeAssDanmakuPart(FILE *opF, DANMAKU *head, CONFIG config, STATUS *const s
     
     if ((R2LToRightTime = (int *)malloc(rollResY * sizeof(int))) == NULL)
     {
-        fclose(opF);
+        // fclose(opF);
         return 3;
     }
     if ((R2LToLeftTime = (int *)malloc(rollResY * sizeof(int))) == NULL)
     {
         free(R2LToRightTime);
-        fclose(opF);
+        // fclose(opF);
         return 4;
     }
     if ((L2RToRightTime = (int *)malloc(rollResY * sizeof(int))) == NULL)
     {
         free(R2LToRightTime);
         free(R2LToLeftTime);
-        fclose(opF);
+        // fclose(opF);
         return 5;
     }
     if ((L2RToLeftTime = (int *)malloc(rollResY * sizeof(int))) == NULL)
@@ -1890,7 +1882,7 @@ int writeAssDanmakuPart(FILE *opF, DANMAKU *head, CONFIG config, STATUS *const s
         free(R2LToRightTime);
         free(R2LToLeftTime);
         free(L2RToRightTime);
-        fclose(opF);
+        // fclose(opF);
         return 6;
     }
     if ((fixEndTime = (int *)malloc(holdResY * sizeof(int))) == NULL)
@@ -1899,7 +1891,7 @@ int writeAssDanmakuPart(FILE *opF, DANMAKU *head, CONFIG config, STATUS *const s
         free(R2LToLeftTime);
         free(L2RToRightTime);
         free(L2RToLeftTime);
-        fclose(opF);
+        // fclose(opF);
         return 7;
     }
     memset(R2LToRightTime, 0, rollResY * sizeof(int));
@@ -2047,36 +2039,36 @@ int writeAssDanmakuPart(FILE *opF, DANMAKU *head, CONFIG config, STATUS *const s
                     R2LToRightTime[PositionY + cnt] = now -> time + GET_ASS_MS_FLT(rollTime / 1000.0f * textLen / (resolution.x + textLen)); 
                     R2LToLeftTime[PositionY + cnt] = now -> time + rollTime;
                 }
-                fprintf(opF, "\nDialogue: 0,");
+                appendFormattedToAutoString(output, "\nDialogue: 0,");
             }
             else
             {
-                fprintf(opF, "\nComment: 0,");
+                appendFormattedToAutoString(output, "\nComment: 0,");
             }
             
-            printTime(opF, now->time, ",");
-            printTime(opF, now->time + rollTime, ",");
-            fprintf(opF, "R2L,,0000,0000,0000,,{\\move(%d,%d,%d,%d)",
+            printTime(output, now->time, ",");
+            printTime(output, now->time + rollTime, ",");
+            appendFormattedToAutoString(output, "R2L,,0000,0000,0000,,{\\move(%d,%d,%d,%d)",
                     resolution.x + textLen/2, PositionY, -1 * textLen / 2, PositionY);
             
             if(textHei != fontSize)
             {
-                fprintf(opF, "\\fs%d", textHei);
+                appendFormattedToAutoString(output, "\\fs%d", textHei);
             }
             
-            fprintf(opF, "}");
+            appendFormattedToAutoString(output, "}");
             if (showUserName == TRUE && now->user != NULL)
             {
-                fprintf(opF, "{\\c&HBCACF7}%s:\\h", now->user->name);
+                appendFormattedToAutoString(output, "{\\c&HBCACF7}%s:\\h", now->user->name);
             }
 
             if(now -> color != 0xFFFFFF || showUserName == TRUE)
             {
                 char hexColor[7];
-                fprintf(opF, "{\\c&H%s}", toHexColor(now->color, hexColor));
+                appendFormattedToAutoString(output, "{\\c&H%s}", toHexColor(now->color, hexColor));
             }
 
-            fprintf(opF, "%s", escapedText);
+            appendFormattedToAutoString(output, "%s", escapedText);
         }
         else if(now -> type == 2 || now -> type == -2)/* 左右弹幕 */ 
         {
@@ -2119,36 +2111,36 @@ int writeAssDanmakuPart(FILE *opF, DANMAKU *head, CONFIG config, STATUS *const s
                     L2RToLeftTime[PositionY + cnt] = now -> time + rollTime;
                 }
                 
-                fprintf(opF, "\nDialogue: 0,");
+                appendFormattedToAutoString(output, "\nDialogue: 0,");
             }
             else
             {
-                fprintf(opF, "\nComment: 0,");
+                appendFormattedToAutoString(output, "\nComment: 0,");
             }
             
-            printTime(opF, now->time, ",");
-            printTime(opF, now->time + rollTime, ",");
-            fprintf(opF, "L2R,,0000,0000,0000,,{\\move(%d,%d,%d,%d)",
+            printTime(output, now->time, ",");
+            printTime(output, now->time + rollTime, ",");
+            appendFormattedToAutoString(output, "L2R,,0000,0000,0000,,{\\move(%d,%d,%d,%d)",
                     -1 * textLen / 2, PositionY, resolution.x + textLen/2, PositionY);
             
             if(textHei != fontSize)
             {
-                fprintf(opF, "\\fs%d", textHei);
+                appendFormattedToAutoString(output, "\\fs%d", textHei);
             }
             
-            fprintf(opF, "}");
+            appendFormattedToAutoString(output, "}");
             if (showUserName == TRUE && now->user != NULL)
             {
-                fprintf(opF, "{\\c&HBCACF7}%s:", now->user->name);
+                appendFormattedToAutoString(output, "{\\c&HBCACF7}%s:", now->user->name);
             }
 
             if(now -> color != 0xFFFFFF || showUserName == TRUE)
             {
                 char hexColor[7];
-                fprintf(opF, "{\\c&H%s}", toHexColor(now->color, hexColor));
+                appendFormattedToAutoString(output, "{\\c&H%s}", toHexColor(now->color, hexColor));
             }
 
-            fprintf(opF, "%s", escapedText);
+            appendFormattedToAutoString(output, "%s", escapedText);
         }
         else if(now -> type == 3 || now -> type == -3)/* 顶端弹幕 */ 
         {
@@ -2187,35 +2179,35 @@ int writeAssDanmakuPart(FILE *opF, DANMAKU *head, CONFIG config, STATUS *const s
                 {/* 登记占用信息 */ 
                     fixEndTime[PositionY + cnt] = now -> time + holdTime;
                 }
-                fprintf(opF, "\nDialogue: 1,");
+                appendFormattedToAutoString(output, "\nDialogue: 1,");
             }
             else
             {
-                fprintf(opF, "\nComment: 0,");
+                appendFormattedToAutoString(output, "\nComment: 0,");
             }
             
-            printTime(opF, now->time, ",");
-            printTime(opF, now->time + holdTime, ",");
-            fprintf(opF, "TOP,,0000,0000,0000,,{\\pos(%d,%d)", resolution.x / 2, PositionY);
+            printTime(output, now->time, ",");
+            printTime(output, now->time + holdTime, ",");
+            appendFormattedToAutoString(output, "TOP,,0000,0000,0000,,{\\pos(%d,%d)", resolution.x / 2, PositionY);
             
             if(textHei != fontSize)
             {
-                fprintf(opF, "\\fs%d", textHei);
+                appendFormattedToAutoString(output, "\\fs%d", textHei);
             }
             
-            fprintf(opF, "}");
+            appendFormattedToAutoString(output, "}");
             if (showUserName == TRUE && now->user != NULL)
             {
-                fprintf(opF, "{\\c&HBCACF7}%s:", now->user->name);
+                appendFormattedToAutoString(output, "{\\c&HBCACF7}%s:", now->user->name);
             }
 
             if(now -> color != 0xFFFFFF || showUserName == TRUE)
             {
                 char hexColor[7];
-                fprintf(opF, "{\\c&H%s}", toHexColor(now->color, hexColor));
+                appendFormattedToAutoString(output, "{\\c&H%s}", toHexColor(now->color, hexColor));
             }
 
-            fprintf(opF, "%s", escapedText);
+            appendFormattedToAutoString(output, "%s", escapedText);
         }
         else if(now -> type == 4 || now -> type == -4)/* 底端弹幕 */ 
         {
@@ -2258,36 +2250,36 @@ int writeAssDanmakuPart(FILE *opF, DANMAKU *head, CONFIG config, STATUS *const s
                 {/* 登记占用信息 */ 
                     fixEndTime[PositionY - cnt] = now -> time + holdTime;
                 }
-                fprintf(opF, "\nDialogue: 1,");
+                appendFormattedToAutoString(output, "\nDialogue: 1,");
             }
             else
             {
-                fprintf(opF, "\nComment: 0,");
+                appendFormattedToAutoString(output, "\nComment: 0,");
             }
             
-            printTime(opF, now->time, ",");
-            printTime(opF, now->time + holdTime, ",");
-            fprintf(opF, "BTM,,0000,0000,0000,,{\\pos(%d,%d)",
+            printTime(output, now->time, ",");
+            printTime(output, now->time + holdTime, ",");
+            appendFormattedToAutoString(output, "BTM,,0000,0000,0000,,{\\pos(%d,%d)",
                     resolution.x / 2, PositionY - textHei + 2);
             
             if(textHei != fontSize)
             {
-                fprintf(opF, "\\fs%d", textHei);
+                appendFormattedToAutoString(output, "\\fs%d", textHei);
             }
             
-            fprintf(opF, "}");
+            appendFormattedToAutoString(output, "}");
             if (showUserName == TRUE && now->user != NULL)
             {
-                fprintf(opF, "{\\c&HBCACF7}%s:", now->user->name);
+                appendFormattedToAutoString(output, "{\\c&HBCACF7}%s:", now->user->name);
             }
 
             if(now -> color != 0xFFFFFF || showUserName == TRUE)
             {
                 char hexColor[7];
-                fprintf(opF, "{\\c&H%s}", toHexColor(now->color, hexColor));
+                appendFormattedToAutoString(output, "{\\c&H%s}", toHexColor(now->color, hexColor));
             }
 
-            fprintf(opF, "%s", escapedText);
+            appendFormattedToAutoString(output, "%s", escapedText);
         }
         else if(now -> type == 5 || now -> type == -5)/* 特殊弹幕 */
         {
@@ -2315,16 +2307,16 @@ int writeAssDanmakuPart(FILE *opF, DANMAKU *head, CONFIG config, STATUS *const s
             /* 写到字幕文件 */
             if (now -> type < 0)
             {
-                fprintf(opF, "\nComment: 0,");
+                appendFormattedToAutoString(output, "\nComment: 0,");
             }
             else
             {
-                fprintf(opF, "\nDialogue: 0,");
+                appendFormattedToAutoString(output, "\nDialogue: 0,");
             }
             
-            printTime(opF, now->time, ",");
-            printTime(opF, now->time + GET_ASS_MS_INT(n7ExistTime), ",");
-            fprintf(opF, "SP,,0000,0000,0000,,{");
+            printTime(output, now->time, ",");
+            printTime(output, now->time + GET_ASS_MS_INT(n7ExistTime), ",");
+            appendFormattedToAutoString(output, "SP,,0000,0000,0000,,{");
             if( (n7StartX < 1+EPS) && (n7EndX < 1+EPS) && (n7StartY < 1+EPS) && (n7EndY < 1+EPS) )
             {
                 n7StartX *= resolution.x;
@@ -2334,68 +2326,68 @@ int writeAssDanmakuPart(FILE *opF, DANMAKU *head, CONFIG config, STATUS *const s
             }
             if(n7StartX == n7EndX && n7StartY == n7EndY)
             {/* 固定位置 */ 
-                fprintf(opF, "\\pos(%d,%d)", (int)n7StartX, (int)n7StartY);
+                appendFormattedToAutoString(output, "\\pos(%d,%d)", (int)n7StartX, (int)n7StartY);
             }
             else
             {/* 移动位置 */ 
-                fprintf(opF, "\\move(%d,%d,%d,%d", (int)n7StartX, (int)n7StartY, (int)n7EndX, (int)n7EndY);
+                appendFormattedToAutoString(output, "\\move(%d,%d,%d,%d", (int)n7StartX, (int)n7StartY, (int)n7EndX, (int)n7EndY);
                 if(n7PauseTime == 0)
                 {
                     if(n7MoveTime == 0)
                     {
-                        fprintf(opF, ")");
+                        appendFormattedToAutoString(output, ")");
                     }
                     else
                     {
-                        fprintf(opF, ",0,%d)", n7MoveTime);
+                        appendFormattedToAutoString(output, ",0,%d)", n7MoveTime);
                     }
                 }
                 else
                 {
-                    fprintf(opF, ",%d,%d)", n7PauseTime, n7MoveTime + n7PauseTime);
+                    appendFormattedToAutoString(output, ",%d,%d)", n7PauseTime, n7MoveTime + n7PauseTime);
                 }
             }
             
             if(now -> fontSize != 25)
             {/* 字号 */ 
-                fprintf(opF, "\\fs%d", now -> fontSize);
+                appendFormattedToAutoString(output, "\\fs%d", now -> fontSize);
             }
             
             if(now -> color != 0xFFFFFF)
             {/* 颜色 */ 
                 char hexColor[7];
-                fprintf(opF, "\\c&H%s", toHexColor(now->color, hexColor));
+                appendFormattedToAutoString(output, "\\c&H%s", toHexColor(now->color, hexColor));
             }
             
             if(n7FrY != 0)
             {/* Y轴旋转 */ 
-                fprintf(opF, "\\fry%d", n7FrY);
+                appendFormattedToAutoString(output, "\\fry%d", n7FrY);
             }
             if(n7FrZ != 0)
             {
-                fprintf(opF, "\\frz%d", n7FrZ);
+                appendFormattedToAutoString(output, "\\frz%d", n7FrZ);
             }
             
             if(n7FadeStart != 0 || n7FadeEnd != 0)/* 0-255 越大越透明 */
             {/* fade(淡入透明度,实体透明度,淡出透明度,淡入开始时间,淡入结束时间,淡出开始时间,淡出结束时间) */
-                fprintf(opF, "\\fade(%d,%d,%d,0,0,%d,%d)", n7FadeStart, n7FadeStart,
+                appendFormattedToAutoString(output, "\\fade(%d,%d,%d,0,0,%d,%d)", n7FadeStart, n7FadeStart,
                         n7FadeEnd, n7PauseTime, n7ExistTime);
             }
             else
             {
-                fprintf(opF, "\\alpha&H00");
+                appendFormattedToAutoString(output, "\\alpha&H00");
             }
             
             if(strlen(now -> special -> fontName) > 0)
             {/* 字体 */ 
-                fprintf(opF, "\\fn%s", now -> special -> fontName);
+                appendFormattedToAutoString(output, "\\fn%s", now -> special -> fontName);
             }
 
-            fprintf(opF, "}%s", escapedText);
+            appendFormattedToAutoString(output, "}%s", escapedText);
         }
         else if (now -> type == 8)/* 代码弹幕 */ 
         {
-            fprintf(opF, "\nComment: NO.%d(Code danmaku):Unable to read this type.", listCnt);
+            appendFormattedToAutoString(output, "\nComment: NO.%d(Code danmaku):Unable to read this type.", listCnt);
         }
         else if (IS_MSG(now) && showMsgBox)/* 消息 */
         {
@@ -2414,7 +2406,7 @@ int writeAssDanmakuPart(FILE *opF, DANMAKU *head, CONFIG config, STATUS *const s
 
             if ((newMsgNode = (MSGLIST *)malloc(sizeof(MSGLIST))) == NULL) {
                 /* TODO: 异常处理 */
-                fclose(opF);
+                // fclose(opF);
                 return 3;
             }
 
@@ -2455,25 +2447,25 @@ int writeAssDanmakuPart(FILE *opF, DANMAKU *head, CONFIG config, STATUS *const s
             
             /* 刷新显示 */
             if (now->time < msgStartTime + msgAnimationTime) {
-                writeAliveMessage(opF, &resolution, &msgBoxPos, &msgBoxSize, msgBoxClip, msgFontSize, msgAnimationTime, giftComboSwitch,
+                writeAliveMessage(output, &resolution, &msgBoxPos, &msgBoxSize, msgBoxClip, msgFontSize, msgAnimationTime, giftComboSwitch,
                                   &msgListHead->nextNode, &msgListTail, msgEndTime, msgStartTime, now->time);
                 msgEndTime = now->time;
             } else {
-                writeAliveMessage(opF, &resolution, &msgBoxPos, &msgBoxSize, msgBoxClip, msgFontSize, msgAnimationTime, giftComboSwitch,
+                writeAliveMessage(output, &resolution, &msgBoxPos, &msgBoxSize, msgBoxClip, msgFontSize, msgAnimationTime, giftComboSwitch,
                                   &msgListHead->nextNode, &msgListTail, msgEndTime, msgStartTime, msgStartTime + msgAnimationTime);
                 msgEndTime = msgStartTime + msgAnimationTime;
             }
         }
         else if (now -> type > 0)/* 类型错误 */ 
         {
-            fprintf(opF, "\nComment: NO.%d:unknow type", listCnt);
+            appendFormattedToAutoString(output, "\nComment: NO.%d:unknow type", listCnt);
         }
         
-        if (ferror(opF))
-        {
-            fclose(opF);
-            return 9;
-        }
+        // if (ferror(opF))
+        // {
+        //     fclose(opF);
+        //     return 9;
+        // }
         
         NEXTNODE:
         now = now -> next;
@@ -2489,12 +2481,12 @@ int writeAssDanmakuPart(FILE *opF, DANMAKU *head, CONFIG config, STATUS *const s
     if (msgListTail != NULL && showMsgBox) {
         msgStartTime = msgListHead->comboListHead->message->time;
         /* 上次在场的消息按需常驻显示 */
-        writeAliveMessage(opF, &resolution, &msgBoxPos, &msgBoxSize, msgBoxClip, msgFontSize, msgAnimationTime, giftComboSwitch,
+        writeAliveMessage(output, &resolution, &msgBoxPos, &msgBoxSize, msgBoxClip, msgFontSize, msgAnimationTime, giftComboSwitch,
                           &msgListHead, &msgListTail, msgEndTime, msgStartTime, msgStartTime + msgAnimationTime);
 
         msgEndTime = msgStartTime + msgAnimationTime;
         /* 最后一屏按需常驻显示 */
-        writeAliveMessage(opF, &resolution, &msgBoxPos, &msgBoxSize, msgBoxClip, msgFontSize, msgAnimationTime, giftComboSwitch,
+        writeAliveMessage(output, &resolution, &msgBoxPos, &msgBoxSize, msgBoxClip, msgFontSize, msgAnimationTime, giftComboSwitch,
                           &msgListHead, &msgListTail, msgEndTime, MAX_ASS_MS_INT, MAX_ASS_MS_INT);
     }
     
@@ -2512,7 +2504,7 @@ int writeAssDanmakuPart(FILE *opF, DANMAKU *head, CONFIG config, STATUS *const s
     }
     
     /* 清空缓冲区 */
-    fflush(opF);
+    // fflush(opF);
     
     /* 刷新status */
     if (status != NULL)
@@ -2533,7 +2525,7 @@ int writeAssDanmakuPart(FILE *opF, DANMAKU *head, CONFIG config, STATUS *const s
  * 1 链表为空
  * 2 追加文件失败 
   */ 
-int writeAssStatPart(FILE *opF, DANMAKU *head, int mode, const int rollTime, const int holdTime,
+int writeAssStatPart(AutoString *output, DANMAKU *head, int mode, const int rollTime, const int holdTime,
                       const int density, const int blockMode)
 {
     if(mode == 0)
@@ -2599,50 +2591,50 @@ int writeAssStatPart(FILE *opF, DANMAKU *head, int mode, const int rollTime, con
         /* 根据偏移量选择正确的分布图框 */
         if(pointShiftY == 0)
         {
-            fprintf(opF, "\nDialogue: 5,0:00:00.00,");
-            printTime(opF, endTime, ",");
+            appendFormattedToAutoString(output, "\nDialogue: 5,0:00:00.00,");
+            printTime(output, endTime, ",");
             /* 底框 */ 
-            fprintf(opF, "danmakuFactory_stat,,0000,0000,0000,,{\\an7\\1c&HEAF3CE\\p1}m 20 290"
+            appendFormattedToAutoString(output, "danmakuFactory_stat,,0000,0000,0000,,{\\an7\\1c&HEAF3CE\\p1}m 20 290"
                          " b 20 284 29 275 35 275 l 430 275 b 436 275 445 284 445 290 l 445 370"
                          " b 445 376 436 385 430 385 l 35 385 b 29 385 20 376 20 370 l 20 290{\\p0}");
             
-            fprintf(opF, "\nDialogue: 6,0:00:00.00,");
-            printTime(opF, lastDanmakuEndTime, ",");
+            appendFormattedToAutoString(output, "\nDialogue: 6,0:00:00.00,");
+            printTime(output, lastDanmakuEndTime, ",");
             /* 移动的进度条 */
-            fprintf(opF, "danmakuFactory_stat,,0000,0000,0000,,{\\an7\\move(20, 275, 444, 275)\\clip(m 20 290 b 20 284 29"
+            appendFormattedToAutoString(output, "danmakuFactory_stat,,0000,0000,0000,,{\\an7\\move(20, 275, 444, 275)\\clip(m 20 290 b 20 284 29"
                          " 275 35 275 l 430 275 b 436 275 445 284 445 290 l 445 370 b 445 376 436 385 430 385"
                          " l 35 385 b 29 385 20 376 20 370 l 20 290)\\1c&HCECEF3\\p1}"
                          "m 0 0 l -425 0 l -425 110 l 0 110 l 0 0{\\p0}");
-            fprintf(opF, "\nDialogue: 6,");
-            printTime(opF, lastDanmakuEndTime, ",");
-            printTime(opF, endTime, ",");
+            appendFormattedToAutoString(output, "\nDialogue: 6,");
+            printTime(output, lastDanmakuEndTime, ",");
+            printTime(output, endTime, ",");
             /* 进度条满之后的样子 */
-            fprintf(opF, "danmakuFactory_stat,,0000,0000,0000,,{\\an7\\pos(445, 275)\\clip(m 20 290 b 20 284 29 275 35 275"
+            appendFormattedToAutoString(output, "danmakuFactory_stat,,0000,0000,0000,,{\\an7\\pos(445, 275)\\clip(m 20 290 b 20 284 29 275 35 275"
                          " l 430 275 b 436 275 445 284 445 290 l 445 370 b 445 376 436 385 430 385 l 35 385"
                          " b 29 385 20 376 20 370 l 20 290)\\1c&HCECEF3\\p1}"
                          "m 0 0 l -425 0 l -425 110 l 0 110 l 0 0{\\p0}");
         }
         else if(pointShiftY == -255)
         {
-            fprintf(opF, "\nDialogue: 5,0:00:00.00,");
-            printTime(opF, endTime, ",");
+            appendFormattedToAutoString(output, "\nDialogue: 5,0:00:00.00,");
+            printTime(output, endTime, ",");
             /* 底框 */ 
-            fprintf(opF, "danmakuFactory_stat,,0000,0000,0000,,{\\an7\\1c&HEAF3CE\\p1}m 20 35"
+            appendFormattedToAutoString(output, "danmakuFactory_stat,,0000,0000,0000,,{\\an7\\1c&HEAF3CE\\p1}m 20 35"
                          " b 20 29 29 20 35 20 l 430 20 b 436 20 445 29 445 35 l 445 115"
                          " b 445 121 436 130 430 130 l 35 130 b 29 130 20 121 20 115 l 20 35{\\p0}");
             
-            fprintf(opF, "\nDialogue: 6,0:00:00.00,");
-            printTime(opF, lastDanmakuEndTime, ",");
+            appendFormattedToAutoString(output, "\nDialogue: 6,0:00:00.00,");
+            printTime(output, lastDanmakuEndTime, ",");
             /* 移动的进度条 */
-            fprintf(opF, "danmakuFactory_stat,,0000,0000,0000,,{\\an7\\move(20, 20, 444, 20)\\clip(m 20 35 b 20 29 29 20"
+            appendFormattedToAutoString(output, "danmakuFactory_stat,,0000,0000,0000,,{\\an7\\move(20, 20, 444, 20)\\clip(m 20 35 b 20 29 29 20"
                          " 35 20 l 430 20 b 436 20 445 29 445 35 l 445 115 b 445 121 436 130 430 130 l 35 130"
                          " b 29 130 20 121 20 115 l 20 35)\\1c&HCECEF3\\p1}"
                          "m 0 0 l -425 0 l -425 110 l 0 110 l 0 0{\\p0}");
-            fprintf(opF, "\nDialogue:6,");
-            printTime(opF, lastDanmakuEndTime, ",");
-            printTime(opF, endTime, ",");
+            appendFormattedToAutoString(output, "\nDialogue:6,");
+            printTime(output, lastDanmakuEndTime, ",");
+            printTime(output, endTime, ",");
             /* 进度条满之后的样子 */
-            fprintf(opF, "danmakuFactory_stat,,0000,0000,0000,,{\\an7\\pos(445, 20)\\clip(m 20 35 b 20 29 29 20"
+            appendFormattedToAutoString(output, "danmakuFactory_stat,,0000,0000,0000,,{\\an7\\pos(445, 20)\\clip(m 20 35 b 20 29 29 20"
                          " 35 20 l 430 20 b 436 20 445 29 445 35 l 445 115 b 445 121 436 130 430 130 l 35 130"
                          " b 29 130 20 121 20 115 l 20 35)\\1c&HCECEF3\\p1}"
                          "m 0 0 l -425 0 l -425 110 l 0 110 l 0 0{\\p0}");
@@ -2673,17 +2665,17 @@ int writeAssStatPart(FILE *opF, DANMAKU *head, int mode, const int rollTime, con
         }
         
         /* 画全部弹幕分布图 */
-        fprintf(opF, "\nDialogue:7,0:00:00.00,");
-        printTime(opF, endTime, ",");
+        appendFormattedToAutoString(output, "\nDialogue:7,0:00:00.00,");
+        printTime(output, endTime, ",");
         if(pointShiftY == 0)
         {/* 分布图起始段 */ 
-            fprintf(opF, "danmakuFactory_stat,,0000,0000,0000,,{\\an7\\clip(m 20 290 b 20 284 29 275 35 275 l 430 275"
+            appendFormattedToAutoString(output, "danmakuFactory_stat,,0000,0000,0000,,{\\an7\\clip(m 20 290 b 20 284 29 275 35 275 l 430 275"
                          " b 436 275 445 284 445 290 l 445 370 b 445 376 436 385 430 385 l 35 385"
                          " b 29 385 20 376 20 370 l 20 290)\\1c&HFFFFFF\\p1}m 20 385");
         }
         else if(pointShiftY == -255)
         {
-            fprintf(opF, "danmakuFactory_stat,,0000,0000,0000,,{\\an7\\clip(m 20 35 b 20 29 29 20"
+            appendFormattedToAutoString(output, "danmakuFactory_stat,,0000,0000,0000,,{\\an7\\clip(m 20 35 b 20 29 29 20"
                          " 35 20 l 430 20 b 436 20 445 29 445 35 l 445 115 b 445 121 436 130 430 130 l 35 130"
                          " b 29 130 20 121 20 115 l 20 35)\\1c&HFFFFFF\\p1}m 20 130");
         }
@@ -2693,47 +2685,47 @@ int writeAssStatPart(FILE *opF, DANMAKU *head, int mode, const int rollTime, con
         {/* 根据统计数据画图，最高高度是110px */ 
             if(cnt == 1)
             {/* 第一根线 */ 
-                fprintf(opF, " l %d %d",
+                appendFormattedToAutoString(output, " l %d %d",
                         mPointX, 385 - (int)((float)allCnt[cnt] / chartMaxHeight * 110) + pointShiftY);
                 mPointX += 2;
             }
             
             /* 横向画线让柱子有一定宽度 */ 
-            fprintf(opF, " l %d %d",
+            appendFormattedToAutoString(output, " l %d %d",
                         mPointX, 385 - (int)((float)allCnt[cnt] / chartMaxHeight * 110) + pointShiftY);
             
             
             if(cnt == 211)
             {/* 最后一条线连接到图形右下角 */ 
-                fprintf(opF, " l %d %d", mPointX, 385 + pointShiftY);
+                appendFormattedToAutoString(output, " l %d %d", mPointX, 385 + pointShiftY);
             }
             else
             {/* 纵向画线，将线条画到下一个数据点高度 */ 
-                fprintf(opF, " l %d %d",
+                appendFormattedToAutoString(output, " l %d %d",
                         mPointX, 385 - (int)((float)allCnt[cnt + 1] / chartMaxHeight * 110) + pointShiftY);
                 mPointX += 2;
             }
         }
         
         /* 封闭图形 */
-        fprintf(opF, " l 20 385{\\p0}");
+        appendFormattedToAutoString(output, " l 20 385{\\p0}");
         
         /* 画屏蔽弹幕分布图 */ 
         if(drawBlockChart == TRUE)
         {
             mPointX = 21;
-            fprintf(opF, "\nDialogue: 8,0:00:00.00,");
-            printTime(opF, endTime, ",");
+            appendFormattedToAutoString(output, "\nDialogue: 8,0:00:00.00,");
+            printTime(output, endTime, ",");
             
             if(pointShiftY == 0)
             {
-                fprintf(opF, "danmakuFactory_stat,,0000,0000,0000,,{\\an7\\clip(m 20 290 b 20 284 29 275 35 275 l 430 275"
+                appendFormattedToAutoString(output, "danmakuFactory_stat,,0000,0000,0000,,{\\an7\\clip(m 20 290 b 20 284 29 275 35 275 l 430 275"
                              " b 436 275 445 284 445 290 l 445 370 b 445 376 436 385 430 385 l 35 385"
                              " b 29 385 20 376 20 370 l 20 290)\\1c&HD3D3D3\\p1}m 20 385");
             }
             else if(pointShiftY == -255)
             {
-                fprintf(opF, "danmakuFactory_stat,,0000,0000,0000,,{\\an7\\clip(m 20 35 b 20 29 29 20"
+                appendFormattedToAutoString(output, "danmakuFactory_stat,,0000,0000,0000,,{\\an7\\clip(m 20 35 b 20 29 29 20"
                              " 35 20 l 430 20 b 436 20 445 29 445 35 l 445 115 b 445 121 436 130 430 130 l 35 130"
                              " b 29 130 20 121 20 115 l 20 35)\\1c&HD3D3D3\\p1}m 20 130");
             }
@@ -2741,28 +2733,28 @@ int writeAssStatPart(FILE *opF, DANMAKU *head, int mode, const int rollTime, con
             {/* 根据统计数据画图，最高高度是110px */ 
                 if(cnt == 1)
                 {/* 第一根线 */ 
-                    fprintf(opF, " l %d %d",
+                    appendFormattedToAutoString(output, " l %d %d",
                             mPointX, 385 - (int)((float)blockCnt[cnt] / chartMaxHeight * 110) + pointShiftY);
                     mPointX += 2;
                 }
                 
                 /* 横向画线让柱子有一定宽度 */
-                fprintf(opF, " l %d %d",
+                appendFormattedToAutoString(output, " l %d %d",
                             mPointX, 385 - (int)((float)blockCnt[cnt] / chartMaxHeight * 110) + pointShiftY);
                 
                 if(cnt == 211)
                 {/* 最后一条线连接到图形右下角 */
-                    fprintf(opF, " l %d %d", mPointX, 385 + pointShiftY);
+                    appendFormattedToAutoString(output, " l %d %d", mPointX, 385 + pointShiftY);
                 }
                 else
                 {/* 纵向画线，将线条画到下一个数据点高度 */ 
-                    fprintf(opF, " l %d %d",
+                    appendFormattedToAutoString(output, " l %d %d",
                             mPointX, 385 - (int)((float)blockCnt[cnt + 1] / chartMaxHeight * 110) + pointShiftY);
                     mPointX += 2;
                 }
             }
             /* 封闭图形 */
-            fprintf(opF, " l 20 385{\\p0}");
+            appendFormattedToAutoString(output, " l 20 385{\\p0}");
         }
     }
 
@@ -2803,30 +2795,30 @@ int writeAssStatPart(FILE *opF, DANMAKU *head, int mode, const int rollTime, con
         
         /* 画表格形状及上面的常驻或初始数据 */
         endTime = lastDanmakuStartTime + 30 * 1000;
-        fprintf(opF, "\n\nDialogue:3,0:00:00.00,");
-        printTime(opF, endTime, ",");
-        fprintf(opF, "danmakuFactory_stat,,0000,0000,0000,,{\\an7\\1c&HCECEF3\\p1}"
+        appendFormattedToAutoString(output, "\n\nDialogue:3,0:00:00.00,");
+        printTime(output, endTime, ",");
+        appendFormattedToAutoString(output, "danmakuFactory_stat,,0000,0000,0000,,{\\an7\\1c&HCECEF3\\p1}"
                      "m 20 35 b 20 26 26 20 35 20 l 430 20 b 439 20 445 29 445 35 l 445 50 l 20 50 l 20 35 "
                      "m 20 80 l 445 80 l 445 110 l 20 110 l 20 110 l 20 80 m 20 140 l 445 140 l 445 170 l 20"
                      " 170 l 20 170 l 20 140 m 20 200 l 445 200 l 445 230 l 20 230 l 20 230 l 20 200{\\p0}");
-        fprintf(opF, "\nDialogue:4,0:00:00.00,");
-        printTime(opF, endTime, ",");
-        fprintf(opF, "danmakuFactory_stat,,0000,0000,0000,,{\\an7\\1c&HEAF3CE\\p1}"
+        appendFormattedToAutoString(output, "\nDialogue:4,0:00:00.00,");
+        printTime(output, endTime, ",");
+        appendFormattedToAutoString(output, "danmakuFactory_stat,,0000,0000,0000,,{\\an7\\1c&HEAF3CE\\p1}"
                      "m 20 50 l 445 50 l 445 80 l 20 80 l 20 80 l 20 50 m 20 110 l 445 110 l 445 140 l 20 140"
                      " l 20 140 l 20 110 m 20 170 l 445 170 l 445 200 l 20 200 l 20 200 l 20 170 m 20 230"
                      " l 445 230 l 445 230 l 445 245 b 445 251 436 260 430 260 l 35 260 b 29 260 20 251 20 245"
                      " l 20 230{\\p0}");
         
         /* 显示表格文字 注*调试模式的文字统一在第十层显示 */
-        printStatDataStr(opF, 0, endTime,  62, 35, NULL, "type");
-        printStatDataStr(opF, 0, endTime, 147, 35, NULL, "screen");
-        printStatDataStr(opF, 0, endTime, 232, 35, NULL, "blockCnt");
-        printStatDataStr(opF, 0, endTime, 317, 35, NULL, "count");
-        printStatDataStr(opF, 0, endTime, 402, 35, NULL, "total");
+        printStatDataStr(output, 0, endTime,  62, 35, NULL, "type");
+        printStatDataStr(output, 0, endTime, 147, 35, NULL, "screen");
+        printStatDataStr(output, 0, endTime, 232, 35, NULL, "blockCnt");
+        printStatDataStr(output, 0, endTime, 317, 35, NULL, "count");
+        printStatDataStr(output, 0, endTime, 402, 35, NULL, "total");
 
-        fprintf(opF, "\nDialogue:10,0:00:00.00,");
-        printTime(opF, endTime, ",");
-        fprintf(opF, "danmakuFactory_stat,,0000,0000,0000,,{\\an4\\pos(35,245)\\b1\\fs25\\1c&HFFFFFF"
+        appendFormattedToAutoString(output, "\nDialogue:10,0:00:00.00,");
+        printTime(output, endTime, ",");
+        appendFormattedToAutoString(output, "danmakuFactory_stat,,0000,0000,0000,,{\\an4\\pos(35,245)\\b1\\fs25\\1c&HFFFFFF"
                      "}DanmakuFactory by hkm");
         
         /* 显示弹幕类型表头，如果被屏蔽就使用划线 */
@@ -2835,62 +2827,62 @@ int writeAssStatPart(FILE *opF, DANMAKU *head, int mode, const int rollTime, con
              !(blockMode & BLK_SPECIAL)
           )
         {
-            printStatDataStr(opF, 0, endTime, 62, 65, NULL, "ALL");
+            printStatDataStr(output, 0, endTime, 62, 65, NULL, "ALL");
         }
         else
         {
-            printStatDataStr(opF, 0, endTime, 62, 65, "\\s1", "ALL");
+            printStatDataStr(output, 0, endTime, 62, 65, "\\s1", "ALL");
         }
         if(!(blockMode & BLK_R2L))
         {
-            printStatDataStr(opF, 0, endTime, 62, 95, NULL, "R to L");
+            printStatDataStr(output, 0, endTime, 62, 95, NULL, "R to L");
         }
         else
         {
-            printStatDataStr(opF, 0, endTime, 62, 95, "\\s1", "R to L");
+            printStatDataStr(output, 0, endTime, 62, 95, "\\s1", "R to L");
         }
         if(!(blockMode & BLK_L2R))
         {
-            printStatDataStr(opF, 0, endTime, 62, 125, NULL, "L to R");
+            printStatDataStr(output, 0, endTime, 62, 125, NULL, "L to R");
         }
         else
         {
-            printStatDataStr(opF, 0, endTime, 62, 125, "\\s1", "L to R");
+            printStatDataStr(output, 0, endTime, 62, 125, "\\s1", "L to R");
         }
         if(!(blockMode & BLK_TOP))
         {
-            printStatDataStr(opF, 0, endTime, 62, 155, NULL, "TOP");
+            printStatDataStr(output, 0, endTime, 62, 155, NULL, "TOP");
         }
         else
         {
-            printStatDataStr(opF, 0, endTime, 62, 155, "\\s1", "TOP");
+            printStatDataStr(output, 0, endTime, 62, 155, "\\s1", "TOP");
         }
         if(!(blockMode & BLK_BOTTOM))
         {
-            printStatDataStr(opF, 0, endTime, 62, 185, NULL, "BOTTOM");
+            printStatDataStr(output, 0, endTime, 62, 185, NULL, "BOTTOM");
         }
         else
         {
-            printStatDataStr(opF, 0, endTime, 62, 185, "\\s1", "BOTTOM");
+            printStatDataStr(output, 0, endTime, 62, 185, "\\s1", "BOTTOM");
         }
         if(!(blockMode & BLK_SPECIAL))
         {
-            printStatDataStr(opF, 0, endTime, 62, 215, NULL, "SPCIAL");
+            printStatDataStr(output, 0, endTime, 62, 215, NULL, "SPCIAL");
         }
         else
         {
-            printStatDataStr(opF, 0, endTime, 62, 215, "\\s1", "SPCIAL");
+            printStatDataStr(output, 0, endTime, 62, 215, "\\s1", "SPCIAL");
         }
         
         /* 统一计算显示total的值 */
         for(cnt = 0; cnt < 6; cnt++)
         {
-            printStatDataInt(opF, 0, endTime, 402, 65 + cnt * 30, NULL, total[cnt]);
+            printStatDataInt(output, 0, endTime, 402, 65 + cnt * 30, NULL, total[cnt]);
             if(total[cnt] == 0)
             {/* 总数是0就开始统一显示0 */
-                printStatDataInt(opF, 0, endTime, 147, 65 + cnt * 30, NULL, 0);
-                printStatDataInt(opF, 0, endTime, 317, 65 + cnt * 30, NULL, 0);
-                printStatDataInt(opF, 0, endTime, 232, 65 + cnt * 30, NULL, 0);
+                printStatDataInt(output, 0, endTime, 147, 65 + cnt * 30, NULL, 0);
+                printStatDataInt(output, 0, endTime, 317, 65 + cnt * 30, NULL, 0);
+                printStatDataInt(output, 0, endTime, 232, 65 + cnt * 30, NULL, 0);
             }
         }
         
@@ -2898,11 +2890,11 @@ int writeAssStatPart(FILE *opF, DANMAKU *head, int mode, const int rollTime, con
             /* 如果第一条弹幕不是从 0 开始就将全部数据写 0 */
             for (int i = 0, j; i < 3; i++) {
                 for (j = 0; j <= NUM_OF_TYPE; j++) {
-                    printStatDataInt(opF, 0, head->time, 147 + i * 85, 65 + j * 30, NULL, 0);
+                    printStatDataInt(output, 0, head->time, 147 + i * 85, 65 + j * 30, NULL, 0);
                 }
             }
         }
-        fprintf(opF, "\n");
+        appendFormattedToAutoString(output, "\n");
         
         /* 遍历整个链表打印全部变化的数据 */
         signPtr = now = head;
@@ -2956,8 +2948,8 @@ int writeAssStatPart(FILE *opF, DANMAKU *head, int mode, const int rollTime, con
                 {
                     if(total[cnt])
                     {
-                        printStatDataInt(opF, now -> time, endTime, 232, 65 + 30 * cnt, NULL, block[cnt]);
-                        printStatDataInt(opF, now -> time, endTime, 317, 65 + 30 * cnt, NULL, count[cnt]);
+                        printStatDataInt(output, now -> time, endTime, 232, 65 + 30 * cnt, NULL, block[cnt]);
+                        printStatDataInt(output, now -> time, endTime, 317, 65 + 30 * cnt, NULL, count[cnt]);
                     }
                 }
                 
@@ -3021,18 +3013,18 @@ int writeAssStatPart(FILE *opF, DANMAKU *head, int mode, const int rollTime, con
                         {
                             sprintf(tempStr, "%d/%d", screen[0], density); 
                         }
-                        printStatDataStr(opF, startTime, endTime, 147, 65, NULL, tempStr);
+                        printStatDataStr(output, startTime, endTime, 147, 65, NULL, tempStr);
                     }
                     else
                     {
-                        printStatDataInt(opF, startTime, endTime, 147, 65, NULL, screen[0]);
+                        printStatDataInt(output, startTime, endTime, 147, 65, NULL, screen[0]);
                     }
                     
                     for(cnt = 1; cnt <= NUM_OF_TYPE; cnt++)
                     {/* 写数据 */
                         if(total[cnt])
                         {
-                            printStatDataInt(opF, startTime, endTime,
+                            printStatDataInt(output, startTime, endTime,
                                               147, 65 + 30 * cnt, NULL, screen[cnt]);
                         }
                     }
@@ -3053,78 +3045,78 @@ int writeAssStatPart(FILE *opF, DANMAKU *head, int mode, const int rollTime, con
     if((mode & TABLE) || (mode & HISTOGRAM))
     {
         /* 提示文字底框进场动画 */
-        fprintf(opF, "\nDialogue: 9,");
-        printTime(opF, lastDanmakuStartTime, ",");
-        printTime(opF, lastDanmakuStartTime + 200, ",");
+        appendFormattedToAutoString(output, "\nDialogue: 9,");
+        printTime(output, lastDanmakuStartTime, ",");
+        printTime(output, lastDanmakuStartTime + 200, ",");
         /* 底框 */
         if((mode & TABLE) && (mode & HISTOGRAM))
         {
-            fprintf(opF, "danmakuFactory_stat,,0000,0000,0000,,{\\an4\\move(20,377,20,423)"
+            appendFormattedToAutoString(output, "danmakuFactory_stat,,0000,0000,0000,,{\\an4\\move(20,377,20,423)"
                          "\\iclip(m 20 340 l 445 340 l 445 385 l 20 385 l 20 340)\\1c&HEAF3CE"
                          "\\p1}m 15 0 l 410 0 b 416 0 425 9 425 15 l 425 30 b 425 36 416 45 410 45"
                          " l 15 45 b 9 45 0 37 0 30 l 0 15 b 0 9 9 0 15 0{\\p0}");
         }
         else if (mode & TABLE)
         {
-            fprintf(opF, "danmakuFactory_stat,,0000,0000,0000,,{\\an4\\move(20,252,20,288)"
+            appendFormattedToAutoString(output, "danmakuFactory_stat,,0000,0000,0000,,{\\an4\\move(20,252,20,288)"
                          "\\iclip(m 20 245 l 445 470 l 445 515 l 20 515 l 20 470)\\1c&HEAF3CE"
                          "\\p1}m 15 0 l 410 0 b 416 0 425 9 425 15 l 425 30 b 425 36 416 45 410 45"
                          " l 15 45 b 9 45 0 37 0 30 l 0 15 b 0 9 9 0 15 0{\\p0}");
         }
         else if (mode & HISTOGRAM)
         {
-            fprintf(opF, "Default,,0000,0000,0000,,{\\an4\\move(20,122,20,168)"
+            appendFormattedToAutoString(output, "Default,,0000,0000,0000,,{\\an4\\move(20,122,20,168)"
                          "\\iclip(m 20 85 l 445 85 l 445 130 l 20 130 l 20 85)\\1c&HEAF3CE"
                          "\\p1}m 15 0 l 410 0 b 416 0 425 9 425 15 l 425 30 b 425 36 416 45 410 45"
                          " l 15 45 b 9 45 0 37 0 30 l 0 15 b 0 9 9 0 15 0{\\p0}");
         }
         
         /* 提示文字底框固定后 */
-        fprintf(opF, "\nDialogue: 9,");
-        printTime(opF, lastDanmakuStartTime + 200, ",");
-        printTime(opF, lastDanmakuStartTime + 30 * 1000, ",");
+        appendFormattedToAutoString(output, "\nDialogue: 9,");
+        printTime(output, lastDanmakuStartTime + 200, ",");
+        printTime(output, lastDanmakuStartTime + 30 * 1000, ",");
         /* 底框 */
         if((mode & TABLE) && (mode & HISTOGRAM))
         {
-            fprintf(opF, "danmakuFactory_stat,,0000,0000,0000,,{\\an7\\1c&HEAF3CE\\p1}"
+            appendFormattedToAutoString(output, "danmakuFactory_stat,,0000,0000,0000,,{\\an7\\1c&HEAF3CE\\p1}"
                          "m 35 400 l 430 400 b 436 400 445 409 445 415 l 445 430 b 445 436 436 445 430 445"
                          " l 35 445 b 29 445 20 437 20 430 l 20 415 b 20 409 29 400 35 400{\\p0}");
         }
         else if (mode & TABLE)
         {
-            fprintf(opF, "danmakuFactory_stat,,0000,0000,0000,,{\\an7\\1c&HEAF3CE\\p1}"
+            appendFormattedToAutoString(output, "danmakuFactory_stat,,0000,0000,0000,,{\\an7\\1c&HEAF3CE\\p1}"
                          "m 35 275 l 430 275 b 436 275 445 284 445 290 l 445 305 b 445 311 436 320 430 320"
                          " l 35 320 b 29 320 20 312 20 305 l 20 290 b 20 280 29 275 35 275{\\p0}");
         }
         else if (mode & HISTOGRAM)
         {
-            fprintf(opF, "danmakuFactory_stat,,0000,0000,0000,,{\\an7\\1c&HEAF3CE\\p1}"
+            appendFormattedToAutoString(output, "danmakuFactory_stat,,0000,0000,0000,,{\\an7\\1c&HEAF3CE\\p1}"
                          "m 35 145 l 430 145 b 436 145 445 154 445 160 l 445 175 b 445 181 436 190 430 190"
                          " l 35 190 b 29 190 20 182 20 175 l 20 160 b 20 154 29 145 35 145{\\p0}");
         }
         
         /* 提示文字底框固定后 */
-        fprintf(opF, "\nDialogue: 10,");
-        printTime(opF, lastDanmakuStartTime + 200, ",");
-        printTime(opF, lastDanmakuStartTime + 30 * 1000, ",");
+        appendFormattedToAutoString(output, "\nDialogue: 10,");
+        printTime(output, lastDanmakuStartTime + 200, ",");
+        printTime(output, lastDanmakuStartTime + 30 * 1000, ",");
         /* 提示框进度条 */
         if((mode & TABLE) && (mode & HISTOGRAM))
         {
-            fprintf(opF, "danmakuFactory_stat,,0000,0000,0000,,{\\an7\\move(20, 400, 445, 400)\\clip(m 35 400 l 430 400 "
+            appendFormattedToAutoString(output, "danmakuFactory_stat,,0000,0000,0000,,{\\an7\\move(20, 400, 445, 400)\\clip(m 35 400 l 430 400 "
                          "b 436 400 445 409 445 415 l 445 430 b 445 436 436 445 430 445 l 35 445 "
                          "b 29 445 20 437 20 430 l 20 415 b 20 409 29 400 35 400)"
                          "\\1c&HCECEF3\\p1}m 0 0 l -425 0 l -425 45 l 0 45 l 0 0{\\p0}");
         }
         else if (mode & TABLE)
         {
-            fprintf(opF, "danmakuFactory_stat,,0000,0000,0000,,{\\an7\\move(20, 275, 445, 275)\\clip(m 35 275 l 430 275 "
+            appendFormattedToAutoString(output, "danmakuFactory_stat,,0000,0000,0000,,{\\an7\\move(20, 275, 445, 275)\\clip(m 35 275 l 430 275 "
                          "b 436 275 445 284 445 290 l 445 305 b 445 311 436 320 430 320 l 35 320 "
                          "b 29 320 20 312 20 305 l 20 290 b 20 280 29 275 35 275)"
                          "\\1c&HCECEF3\\p1}m 0 0 l -425 0 l -425 45 l 0 45 l 0 0{\\p0}");
         }
         else if (mode & HISTOGRAM)
         {
-            fprintf(opF, "danmakuFactory_stat,,0000,0000,0000,,{\\an7\\move(20, 145, 445, 145)\\clip(m 35 145 l 430 145 "
+            appendFormattedToAutoString(output, "danmakuFactory_stat,,0000,0000,0000,,{\\an7\\move(20, 145, 445, 145)\\clip(m 35 145 l 430 145 "
                          "b 436 145 445 154 445 160 l 445 175 b 445 181 436 190 430 190 l 35 190 "
                          "b 29 190 20 182 20 175 l 20 160 b 20 154 29 145 35 145)"
                          "\\1c&HCECEF3\\p1}m 0 0 l -425 0 l -425 45 l 0 45 l 0 0{\\p0}");
@@ -3133,28 +3125,28 @@ int writeAssStatPart(FILE *opF, DANMAKU *head, int mode, const int rollTime, con
         /* 刷新退出时间 */
         for(cnt = 0; cnt < 30; cnt++)
         {
-            fprintf(opF, "\nDialogue: 11,");
-            printTime(opF, lastDanmakuStartTime + cnt * 1000, ",");
-            printTime(opF, lastDanmakuStartTime + (cnt + 1) * 1000, ",");
+            appendFormattedToAutoString(output, "\nDialogue: 11,");
+            printTime(output, lastDanmakuStartTime + cnt * 1000, ",");
+            printTime(output, lastDanmakuStartTime + (cnt + 1) * 1000, ",");
             /* 底框 */
             if((mode & TABLE) && (mode & HISTOGRAM))
             {
-                fprintf(opF, "danmakuFactory_stat,,0000,0000,0000,,{\\an4\\pos(35,422)\\b1\\fs25\\1c&HFFFFFF"
+                appendFormattedToAutoString(output, "danmakuFactory_stat,,0000,0000,0000,,{\\an4\\pos(35,422)\\b1\\fs25\\1c&HFFFFFF"
                              "}These charts will close after %d s", 30 - cnt);                
             }
             else if (mode & TABLE)
             {
-                fprintf(opF, "danmakuFactory_stat,,0000,0000,0000,,{\\an4\\pos(35,297)\\b1\\fs25\\1c&HFFFFFF"
+                appendFormattedToAutoString(output, "danmakuFactory_stat,,0000,0000,0000,,{\\an4\\pos(35,297)\\b1\\fs25\\1c&HFFFFFF"
                              "}These charts will close after %d s", 30 - cnt); 
             }
             else if (mode & HISTOGRAM)
             {
-                fprintf(opF, "danmakuFactory_stat,,0000,0000,0000,,{\\an4\\pos(35,167)\\b1\\fs25\\1c&HFFFFFF"
+                appendFormattedToAutoString(output, "danmakuFactory_stat,,0000,0000,0000,,{\\an4\\pos(35,167)\\b1\\fs25\\1c&HFFFFFF"
                              "}These charts will close after %d s", 30 - cnt);                    
             }
         }
     }
-    fflush(opF);
+    // fflush(opF);
     return 0;
 }
 
@@ -3225,10 +3217,10 @@ static int getEndTime(DANMAKU *danmakuPtr, const int rollTime, const int holdTim
  * 返回值：
  * ferror函数的返回值 
  */
-static int printTime(FILE *filePtr, int time, const char *endText) {
+static int printTime(AutoString *output, int time, const char *endText) {
     if (time <= 0) {
-        fprintf(filePtr, "0:00:00.00%s", endText);
-        return ferror(filePtr);
+        appendFormattedToAutoString(output, "0:00:00.00%s", endText);
+        return 0;
     }
 
     int hour = time / (3600 * 1000);
@@ -3237,8 +3229,8 @@ static int printTime(FILE *filePtr, int time, const char *endText) {
     time -= min * (60 * 1000);
     int sec = time / 1000;
     int ms = (time - sec * 1000) / 10;
-    fprintf(filePtr, "%01d:%02d:%02d.%02d%s", hour, min, sec, ms, endText);
-    return ferror(filePtr);
+    appendFormattedToAutoString(output, "%01d:%02d:%02d.%02d%s", hour, min, sec, ms, endText);
+    return 0;
 }
 
 /*
@@ -3307,7 +3299,7 @@ int getMsgBoxHeight(DANMAKU *message, int fontSize, int width)
 /*
  * 打印一条消息到指定位置
  */
-int printMessage(FILE *filePtr,
+int printMessage(AutoString *output,
     int startPosX, int startPosY, int endPosX, int endPosY, int startTime, int endTime,
     int width, int fontSize, char *effect, DANMAKU *message)
 {
@@ -3316,10 +3308,10 @@ int printMessage(FILE *filePtr,
     
     if (message->type == MSG_GIFT)
     {
-        fprintf(filePtr, "\nDialogue: 0,");
-        printTime(filePtr, startTime, ",");
-        printTime(filePtr, endTime, ",");
-        fprintf(filePtr, "message_box,,0000,0000,0000,,{%s%s}{\\c&HBCACF7\\b1}%s: {\\c&HFFFFFF\\b0}%s x%d",
+        appendFormattedToAutoString(output, "\nDialogue: 0,");
+        printTime(output, startTime, ",");
+        printTime(output, endTime, ",");
+        appendFormattedToAutoString(output, "message_box,,0000,0000,0000,,{%s%s}{\\c&HBCACF7\\b1}%s: {\\c&HFFFFFF\\b0}%s x%d",
             getActionStr(actionStr, 0, 0, startPosX, startPosY, endPosX, endPosY), /* 移动指令 */
             effect, /* 补充特效 */
             message->user->name, message->gift->name, message->gift->count /* 礼物信息 */
@@ -3424,10 +3416,10 @@ int printMessage(FILE *filePtr,
         }
 
         /* 绘制上底框 */
-        fprintf(filePtr, "\nDialogue: 0,");
-        printTime(filePtr, startTime, ",");
-        printTime(filePtr, endTime, ",");
-        fprintf(filePtr, "message_box,,0000,0000,0000,,{%s%s%s\\p1\\bord0\\shad0}m %d %d b %d %d %d %d %d %d "
+        appendFormattedToAutoString(output, "\nDialogue: 0,");
+        printTime(output, startTime, ",");
+        printTime(output, endTime, ",");
+        appendFormattedToAutoString(output, "message_box,,0000,0000,0000,,{%s%s%s\\p1\\bord0\\shad0}m %d %d b %d %d %d %d %d %d "
             "l %d %d b %d %d %d %d %d %d l %d %d l %d %d",
             getActionStr(actionStr, 0, 0, startPosX, startPosY, endPosX, endPosY), /* 移动指令 */
             effect, /* 补充特效 */
@@ -3441,10 +3433,10 @@ int printMessage(FILE *filePtr,
         );
 
         /* 绘制下底框 */
-        fprintf(filePtr, "\nDialogue: 0,");
-        printTime(filePtr, startTime, ",");
-        printTime(filePtr, endTime, ",");
-        fprintf(filePtr, "message_box,,0000,0000,0000,,{%s%s\\p1%s\\bord0\\shad0}m %d %d l %d %d l %d %d b %d %d %d %d %d %d l %d %d"
+        appendFormattedToAutoString(output, "\nDialogue: 0,");
+        printTime(output, startTime, ",");
+        printTime(output, endTime, ",");
+        appendFormattedToAutoString(output, "message_box,,0000,0000,0000,,{%s%s\\p1%s\\bord0\\shad0}m %d %d l %d %d l %d %d b %d %d %d %d %d %d l %d %d"
             "b %d %d %d %d %d %d",
             getActionStr(actionStr, 0, topBoxHeight, startPosX, startPosY, endPosX, endPosY), /* 移动指令 */
             effect, /* 补充特效 */
@@ -3458,10 +3450,10 @@ int printMessage(FILE *filePtr,
         );
 
         /* 用户ID */
-        fprintf(filePtr, "\nDialogue: 1,");
-        printTime(filePtr, startTime, ",");
-        printTime(filePtr, endTime, ",");
-        fprintf(filePtr, "message_box,,0000,0000,0000,,{%s%s%s\\b1\\bord0\\shad0}%s",
+        appendFormattedToAutoString(output, "\nDialogue: 1,");
+        printTime(output, startTime, ",");
+        printTime(output, endTime, ",");
+        appendFormattedToAutoString(output, "message_box,,0000,0000,0000,,{%s%s%s\\b1\\bord0\\shad0}%s",
             getActionStr(actionStr, radius/2, radius/3, startPosX, startPosY, endPosX, endPosY), /* 移动指令 */
             effect, /* 补充特效 */
             userIDColor, /* 颜色 */
@@ -3469,10 +3461,10 @@ int printMessage(FILE *filePtr,
         );
 
         /* SC金额 */
-        fprintf(filePtr, "\nDialogue: 1,");
-        printTime(filePtr, startTime, ",");
-        printTime(filePtr, endTime, ",");
-        fprintf(filePtr, "message_box,,0000,0000,0000,,{%s%s%s\\fs%d\\bord0\\shad0}SuperChat CNY %d",
+        appendFormattedToAutoString(output, "\nDialogue: 1,");
+        printTime(output, startTime, ",");
+        printTime(output, endTime, ",");
+        appendFormattedToAutoString(output, "message_box,,0000,0000,0000,,{%s%s%s\\fs%d\\bord0\\shad0}SuperChat CNY %d",
             getActionStr(actionStr, radius/2, fontSize+radius/3, startPosX, startPosY, endPosX, endPosY), /* 移动指令 */
             effect, /* 补充特效 */
             textColor, /* 颜色 */
@@ -3481,10 +3473,10 @@ int printMessage(FILE *filePtr,
         );
 
         /* SC内容 */
-        fprintf(filePtr, "\nDialogue: 1,");
-        printTime(filePtr, startTime, ",");
-        printTime(filePtr, endTime, ",");
-        fprintf(filePtr, "message_box,,0000,0000,0000,,{%s%s\\c&HFFFFFF\\bord0\\shad0}%s",
+        appendFormattedToAutoString(output, "\nDialogue: 1,");
+        printTime(output, startTime, ",");
+        printTime(output, endTime, ",");
+        appendFormattedToAutoString(output, "message_box,,0000,0000,0000,,{%s%s\\c&HFFFFFF\\bord0\\shad0}%s",
             getActionStr(actionStr, radius/2, topBoxHeight, startPosX, startPosY, endPosX, endPosY), /* 移动指令 */
             effect, /* 补充特效 */
             scMsgStr /* SC内容 */
@@ -3517,10 +3509,10 @@ int printMessage(FILE *filePtr,
         }
 
         /* 绘制底框 */
-        fprintf(filePtr, "\nDialogue: 0,");
-        printTime(filePtr, startTime, ",");
-        printTime(filePtr, endTime, ",");
-        fprintf(filePtr, "message_box,,0000,0000,0000,,{%s%s%s\\p1\\bord0\\shad0}m %d %d b %d %d %d %d %d %d "
+        appendFormattedToAutoString(output, "\nDialogue: 0,");
+        printTime(output, startTime, ",");
+        printTime(output, endTime, ",");
+        appendFormattedToAutoString(output, "message_box,,0000,0000,0000,,{%s%s%s\\p1\\bord0\\shad0}m %d %d b %d %d %d %d %d %d "
             "l %d %d b %d %d %d %d %d %d l %d %d b %d %d %d %d %d %d l %d %d b %d %d %d %d %d %d",
             getActionStr(actionStr, 0, 0, startPosX, startPosY, endPosX, endPosY), /* 移动指令 */
             effect, /* 补充特效 */
@@ -3536,10 +3528,10 @@ int printMessage(FILE *filePtr,
         );
 
         /* 用户ID */
-        fprintf(filePtr, "\nDialogue: 1,");
-        printTime(filePtr, startTime, ",");
-        printTime(filePtr, endTime, ",");
-        fprintf(filePtr, "message_box,,0000,0000,0000,,{%s%s%s\\bord0\\shad0}%s",
+        appendFormattedToAutoString(output, "\nDialogue: 1,");
+        printTime(output, startTime, ",");
+        printTime(output, endTime, ",");
+        appendFormattedToAutoString(output, "message_box,,0000,0000,0000,,{%s%s%s\\bord0\\shad0}%s",
             getActionStr(actionStr, radius/2, radius/3, startPosX, startPosY, endPosX, endPosY), /* 移动指令 */
             effect, /* 补充特效 */
             userIDColor, /* 颜色 */
@@ -3547,10 +3539,10 @@ int printMessage(FILE *filePtr,
         );
 
         /* 舰长信息 */
-        fprintf(filePtr, "\nDialogue: 1,");
-        printTime(filePtr, startTime, ",");
-        printTime(filePtr, endTime, ",");
-        fprintf(filePtr, "message_box,,0000,0000,0000,,{%s%s%s\\fs%d\\bord0\\shad0}Welcome new %s!",
+        appendFormattedToAutoString(output, "\nDialogue: 1,");
+        printTime(output, startTime, ",");
+        printTime(output, endTime, ",");
+        appendFormattedToAutoString(output, "message_box,,0000,0000,0000,,{%s%s%s\\fs%d\\bord0\\shad0}Welcome new %s!",
             getActionStr(actionStr, radius/2, fontSize+radius/3, startPosX, startPosY, endPosX, endPosY), /* 移动指令 */
             effect, /* 补充特效 */
             textColor, /* 颜色 */
@@ -3559,7 +3551,7 @@ int printMessage(FILE *filePtr,
         );
     }
     
-    return ferror(filePtr);
+    return 0;
 }
 
 /* 
@@ -3604,19 +3596,19 @@ static int findMin(int *array, const int numOfLine, const int stopSubScript, con
  * 返回值：
  * ferror函数的返回值 
   */
-static int printStatDataInt(FILE *filePtr, const int startTime, const int endTime, const int posX,
+static int printStatDataInt(AutoString *output, const int startTime, const int endTime, const int posX,
                                 const int posY, char *effect, const int data)
 {
-    fprintf(filePtr, "\nDialogue:10,");
-    printTime(filePtr, startTime, ","); 
-    printTime(filePtr, endTime, ",");
-    fprintf(filePtr, "danmakuFactory_stat,,0000,0000,0000,,{\\pos(%d,%d)\\b1", posX, posY);
+    appendFormattedToAutoString(output, "\nDialogue:10,");
+    printTime(output, startTime, ","); 
+    printTime(output, endTime, ",");
+    appendFormattedToAutoString(output, "danmakuFactory_stat,,0000,0000,0000,,{\\pos(%d,%d)\\b1", posX, posY);
     if(effect != NULL)
     {
-        fprintf(filePtr, "%s", effect);
+        appendFormattedToAutoString(output, "%s", effect);
     }
-    fprintf(filePtr, "\\fs25\\1c&HFFFFFF}%d", data);
-    return ferror(filePtr);
+    appendFormattedToAutoString(output, "\\fs25\\1c&HFFFFFF}%d", data);
+    return 0;
 }
 
 /* 
@@ -3626,17 +3618,17 @@ static int printStatDataInt(FILE *filePtr, const int startTime, const int endTim
  * 返回值：
  * ferror函数的返回值 
   */
-static int printStatDataStr(FILE *filePtr, const int startTime, const int endTime, const int posX,
+static int printStatDataStr(AutoString *output, const int startTime, const int endTime, const int posX,
                         const int posY, const char *effect, const char *str)
 {
-    fprintf(filePtr, "\nDialogue:10,");
-    printTime(filePtr, startTime, ",");
-    printTime(filePtr, endTime, ",");
-    fprintf(filePtr, "danmakuFactory_stat,,0000,0000,0000,,{\\pos(%d,%d)\\b1", posX, posY);
+    appendFormattedToAutoString(output, "\nDialogue:10,");
+    printTime(output, startTime, ",");
+    printTime(output, endTime, ",");
+    appendFormattedToAutoString(output, "danmakuFactory_stat,,0000,0000,0000,,{\\pos(%d,%d)\\b1", posX, posY);
     if(effect != NULL)
     {
-        fprintf(filePtr, "%s", effect);
+        appendFormattedToAutoString(output, "%s", effect);
     }
-    fprintf(filePtr, "\\fs25\\1c&HFFFFFF}%s", str);
-    return ferror(filePtr);
+    appendFormattedToAutoString(output, "\\fs25\\1c&HFFFFFF}%s", str);
+    return 0;
 }
