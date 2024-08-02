@@ -97,13 +97,6 @@ AutoString* initAutoString(size_t initialSize) {
     return aStr;
 }
 
-
-char *hello(char *name)
-{
-    printf("hello world,%s\n", name);
-    return name;
-}
-
 char *readFileToString(const char *filename) {
     FILE *file = fopen(filename, "r");
     if (file == NULL) {
@@ -129,51 +122,25 @@ char *readFileToString(const char *filename) {
     return content;
 }
 
-char *test(char *input)
+
+char *convertXml2ass(char *xmlContent, CONFIG *config)
 {
-    CONFIG config = defaultConfig;
-        int returnValue;
+    int returnValue;
     STATUS status;
     DANMAKU *danmakuPool = NULL;
-
-    // prinf input file value
-    char *xmlContent;
-    xmlContent = readFileToString(input);
-    if(xmlContent == NULL) {
-        return NULL;
-    }
     
-    returnValue = readXml(input, &danmakuPool, "a", 0.0, &status);
+    returnValue = readXml(xmlContent, &danmakuPool, "a", 0.0, &status);
 
     /* 屏蔽 */
-    blockByType(danmakuPool, config.blockmode, (const char **)config.blocklist);
+    blockByType(danmakuPool, config->blockmode, (const char **)config->blocklist);
     sortList(&danmakuPool, NULL);
-    // char *str = (char *)malloc(100);
-    // strcpy(str, "hello ");
-    // strcat(str, name);
     AutoString *outputStr = initAutoString(1024);
 
     char *outputFilename = "hello";
-    returnValue = writeAss(outputFilename, danmakuPool, config, NULL, NULL, outputStr);
-    printf("111ass %s", outputStr->str);
-
-    // // 写入output filename
-    // FILE *fptr = fopen(outfile.fileName, "w");
-    // if (fptr == NULL) {
-    //     fprintf(stderr, "\nERROR"
-    //                     "\nFailed to open file \"%s\" for writing.\n", outfile.fileName);
-    //     return 0;
-    // }
-    // fwrite(outputStr->str, sizeof(char), outputStr->length, fptr);
-    // fclose(fptr);
+    returnValue = writeAss(outputFilename, danmakuPool, *config, NULL, NULL, outputStr);
     return outputStr->str;
 }
 
-// int main()
-// {
-//     printf("hello world\n");
-//     return 0;
-// }
 
 int main(int argc, char **argv)
 {
