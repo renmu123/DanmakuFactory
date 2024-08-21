@@ -120,14 +120,14 @@ int sortList(DANMAKU **listHead, STATUS *const status)
     }
     mergeSort(listHead, status);
 
-    DANMAKU *now = NULL;
+    DANMAKU *now = (*listHead)->next;
     BOOL isSorted = TRUE;
 
     /* 统计弹幕数量并找出最大最小值 */
-    int danmakuNum; // 弹幕条数
-    int max;        // 最大值
-    int min;        // 最小值
-    for (now = *listHead, danmakuNum = 0, max = min = now -> time; now != NULL; now = now -> next, ++danmakuNum)
+    int danmakuNum = 1; // 弹幕条数
+    int max;            // 最大值
+    int min;            // 最小值
+    for (max = min = (*listHead) -> time; now != NULL; now = now -> next, ++danmakuNum)
     {
         if(now -> time > max)
         {
