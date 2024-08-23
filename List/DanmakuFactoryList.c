@@ -235,13 +235,51 @@ void blockByType(DANMAKU *const danmakuHead, const int mode, const char** keyStr
             for (int i = 0; keyStrings[i] != NULL; i++)
             {
                 const char *key = keyStrings[i];
+                size_t keyLen = strlen(key);
 
-                if(ptr -> text == NULL)
+                // if(ptr -> text == NULL)
+                // {
+                //     break;
+                // }
+                
+                // 如果黑名单文本被<>包裹，认为是uid，使用ptr -> user -> uid进行完整匹配
+                if (keyStrings[i][0] == '<' && keyStrings[i][keyLen - 1] == '>')
                 {
-                    break;
+                    if (ptr -> user != NULL && ptr -> user -> uid != 0)
+                    {
+                        char *uidStr = (char *)malloc(keyLen - 1);
+                        strncpy(uidStr, keyStrings[i] + 1, keyLen - 2);
+                        uidStr[keyLen - 2] = '\0';
+                        if (ptr -> user -> uid == atoi(uidStr))
+                        {
+                            if (ptr -> type > 0)
+                            {
+                                ptr -> type *= -1;
+                            }
+                            break;
+                        }
+                    }
                 }
+                // 如果黑名单文本被[]包裹，认为是user，使用ptr -> user -> name进行完整匹配
+                else if (keyStrings[i][0] == '[' && keyStrings[i][keyLen - 1] == ']')
+                {
+                    if (ptr -> user != NULL && ptr -> user -> name[0] != '\0')
+                    {
+                        char *nameStr = (char *)malloc(keyLen - 1);
+                        strncpy(nameStr, keyStrings[i] + 1, keyLen - 2);
+                        nameStr[keyLen - 2] = '\0';
+                        if (strcmp(ptr -> user -> name, nameStr) == 0)
+                        {
+                            if (ptr -> type > 0)
+                            {
+                                ptr -> type *= -1;
+                            }
+                            break;
+                        }
+                    }
+                }
+                else if (ptr -> text != NULL && strstr(ptr -> text, keyStrings[i]) != NULL)
                 // 如果弹幕文本中包含关键字串
-                if (strstr(ptr -> text, keyStrings[i]) != NULL)
                 {
                     if (ptr -> type > 0)
                     {
