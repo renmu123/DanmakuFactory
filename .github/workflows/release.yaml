@@ -25,7 +25,7 @@ jobs:
         run: make
 
       - name: build for windows
-        if: startsWith(matrix.os, 'ubuntu')
+        if: startsWith(matrix.os, 'windows')
         run: mingw32-make
 
       - run: ls
