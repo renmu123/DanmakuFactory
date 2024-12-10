@@ -1,4 +1,4 @@
-name: Build/release
+name: Build
 
 on:
   push:
@@ -51,7 +51,8 @@ jobs:
       - run: |
           docker run --rm -v $(pwd):/tmp/project --entrypoint /bin/sh --platform linux/${{ matrix.arch }} ubuntu:latest -c "\
           cd /tmp/project && \
-          make && ls
+          make && \
+          ls"
       - name: Upload arm64 artifact
         uses: actions/upload-artifact@v4
         with:
