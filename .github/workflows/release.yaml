@@ -53,6 +53,7 @@ jobs:
           apt-get update && \
           apt-get install -y make && \
           cd /tmp/project && \
+          ls && \
           make && \
           ls"
       - name: Upload arm64 artifact
