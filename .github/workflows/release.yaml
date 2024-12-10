@@ -51,7 +51,7 @@ jobs:
       - run: |
           docker run --rm -v $(pwd):/tmp/project --entrypoint /bin/sh --platform linux/${{ matrix.arch }} ubuntu:latest -c "\
           apt-get update && \
-          apt-get install -y make && \
+          apt-get install -y make gcc && \
           cd /tmp/project && \
           ls && \
           make && \
