@@ -36,7 +36,8 @@ extern "C" {
 #include "../Define/Status.h"
 
 extern int sortList(DANMAKU **listHead, STATUS *const status);
-extern void blockByType(DANMAKU *const danmakuHead, const int mode, const char** keyStrings);
+extern void blockByType(DANMAKU *const danmakuHead, const int mode,
+                        const char **keyStrings, BOOL blocklistRegexEnabled);
 extern void freeList(DANMAKU *listHead);
 
 #ifdef __cplusplus
