@@ -22,6 +22,7 @@
  * SOFTWARE.
  */
 
+#include "Define/DanmakuDef.h"
 #include <string.h>
 #ifdef _WIN32
 /* windows下 */
@@ -57,7 +58,10 @@ static CONFIG defaultConfig =
     5.0,            /* 固定时间 */
 
     0,              /* 弹幕密度 */
+    0,              /* 行间距 */
     38,             /* 字号 */
+    FALSE,          /* 是否严格保持指定的字号大小 */
+    FALSE,          /* 是否修正字号 */
                     /* 字体 */
     "Microsoft YaHei", 
     180,            /* 不透明度 */ 
@@ -87,6 +91,7 @@ int main(int argc, char **argv)
     FINFO *infile = NULL;
     int infileNum = 0;
     int argCnt = 1;
+    int arg_config_num = 0;
     int cnt;
     BOOL showConfig = FALSE;
     BOOL saveConfig = FALSE;
@@ -137,7 +142,21 @@ int main(int argc, char **argv)
     {
         /* 读配置文件 */
         config = readConfig(configFilePath, defaultConfig);
-        
+        for (argCnt = 1; argCnt < argc; ++argCnt)
+        {
+            if (!strcmp("-c", argv[argCnt]) || !strcmp("--config", argv[argCnt]))
+            {
+                arg_config_num = getArgNum(argc, argv, argCnt);
+                for (cnt = 0; cnt < arg_config_num; cnt++)
+                {
+                    config = readConfig(argv[argCnt + cnt + 1], config);
+                }
+
+                break;
+            }
+        }
+
+        argCnt = 1;
         /* 遍历参数 */ 
         while (argCnt < argc)
         {
@@ -147,9 +166,9 @@ int main(int argc, char **argv)
                 return 0;
             }
             else if (!strcmp("-c", argv[argCnt]) || !strcmp("--config", argv[argCnt]))
-            {
+            {   // 读取配置文件
                 showConfig = TRUE;
-                argCnt += 1;
+                argCnt += arg_config_num + 1;
             }
             else if (!strcmp("--save", argv[argCnt]))
             {
@@ -326,6 +345,17 @@ int main(int argc, char **argv)
                 
                 argCnt += 2; 
             }
+            else if (!strcmp("--line-spacing", argv[argCnt]))
+            { /* 行间距 */
+                double returnValue = getArgValDouble(argc, argv, argCnt, "LineSpacing", -256.00);
+                if (fabs(returnValue - (-256.0)) < EPS)
+                {
+                    return 0;
+                }
+                config.lineSpacing = (int)returnValue;
+                
+                argCnt += 2; 
+            }
             else if (!strcmp("-S", argv[argCnt]) || !strcmp("--fontsize", argv[argCnt]))
             { /* 字号 */
                 double returnValue = getArgValDouble(argc, argv, argCnt, "Fontsize", -256.00);
@@ -336,6 +366,18 @@ int main(int argc, char **argv)
                 config.fontsize = (int)returnValue;
                 
                 argCnt += 2; 
+            }
+            else if (!strcmp("--font-size-strict", argv[argCnt]))
+            { /* 是否严格保持指定的字号大小 */
+                config.fontSizeStrict = TRUE;
+
+                argCnt += 1;
+            }
+            else if (!strcmp("--font-size-norm", argv[argCnt]))
+            { /* 是否修正字号 */
+                config.fontSizeNorm = TRUE;
+
+                argCnt += 1;
             }
             else if (!strcmp("-N", argv[argCnt]) || !strcmp("--fontname", argv[argCnt]))
             { /* 字号 */
@@ -1197,7 +1239,9 @@ int main(int argc, char **argv)
     }
 
     /* 屏蔽 */
-    blockByType(danmakuPool, config.blockmode, (const char **)config.blocklist, config.blocklistRegexEnabled);
+    blockByType(danmakuPool, config.blockmode, config.blocklist, config.blocklistRegexEnabled);
+    /* 正则化字号 */
+    normFontSize(danmakuPool, config);
     
     /* 读完成提示 */
     printf("\nFile Loading Complete.");
@@ -1389,42 +1433,57 @@ void printHelpInfo()
            "\nConfigurations:"
            "\n-r, --resolution    Specify the value of resolution."
            "\n                    Use any character to connect width and height, like \"1920x1080\"."
+           "\n--displayarea       Specify the percent of display area on the screen(range: 0.0-1.0)."
+           "\n--scrollarea        Specify the percent of scroll area of rolling danmaku on the screen(range: 0.0-1.0)."
            "\n-s, --scrolltime    Specify the time of rolling danmaku to across the screen."
            "\n-f, --fixtime       Specify the time of fix danmaku show on the screen."
+           "\n"
            "\n-d, --density       Specify the maximum number of danmaku could show on the screen at the same time."
            "\n                    Special value: -1 non-overlap, 0 unlimit"
-           "\n"
+           "\n--line-spacing      Specify the line spacing of general danmaku."
            "\n-S, --fontsize      Specify the fontsize of general danmaku."
+           "\n--font-size-strict  Keep `--fontsize` all the time for general danmaku."
+           "\n                    For example, `--fontsize 25 --font-size-strict`"
+           "\n--font-size-norm    Normalize font size for general danmaku."
            "\n-N, --fontname      Specify the fontname of general danmaku."
            "\n-O, --opacity       Specify the opacity of danmaku EXCEPT the special danmaku(range: 1-255)."
            "\n-L, --outline       Specify the width of outline for each danmaku(range: 0-4)."
            "\n-D, --shadow        Specify the depth of shadow for each danmaku(range: 0-4)."
            "\n-B, --bold          Specify whether the font should be boldface."
-           "\n                    Available value: TRUE, FALSE"
+           "\n                    Available value: TRUE, FALSE (default)"
            "\n"
-           "\n--displayarea       Specify the percent of display area on the screen(range: 0.0-1.0)."
-           "\n--scrollarea        Specify the percent of scroll area of rolling danmaku on the screen(range: 0.0-1.0)."
+           "\n--saveblocked       Specify whether remain the blocked message or not."
+           "\n                    If FALSE, the masked message will not remain in the ASS output file."
+           "\n                    Available value: TRUE (default), FALSE"
+           "\n--showusernames     Specify whether show usernames or not."
+           "\n                    Available value: TRUE, FALSE (default)"
+           "\n--showmsgbox        Specify whether show message box or not."
+           "\n                    Available value: TRUE (default), FALSE"
+           "\n"
+           "\n--msgboxsize        Specify the size of message box."
+           "\n                    Use any character to connect width and height, like \"400x1000\"."
+           "\n                    *Note*: width + posX and height + posY should not larger than resolution."
+           "\n--msgboxpos         Specify the position of message box."
+           "\n                    Use any character to connect posX and posY, like \"50x50\"."
+           "\n                    *Note*: width + posX and height + posY should not larger than resolution."
+           "\n--msgboxfontsize    Specify the fontsize of message box."
+           "\n--msgboxduration    Specify the duration of message box."
+           "\n                    If set, will overwrite default seconds value read from xml."
+           "\n--giftminprice      Specify the the minimum price of the gifts, like \"5.20\" Yuan."
            "\n"
            "\n-b, --blockmode     Specify the type of danmaku which will not show on the screen."
            "\n                    Use '-' to connect the type-name, like \"L2R-TOP-BOTTOM\"."
            "\n                    Available value: L2R, R2L, TOP, BOTTOM, SPECIAL, COLOR, REPEAT"
-           "\n"
            "\n--statmode          Specify the type of statistic box which will show on the screen."
            "\n                    Use '-' to connect the type-name, like \"TABLE-HISTOGRAM\"."
            "\n                    Available value: TABLE, HISTOGRAM"
            "\n"
-           "\n--showusernames     Specify whether show usernames or not."
-           "\n                    Available value: TRUE, FALSE"
-           "\n--showmsgbox        Specify whether show message box or not."
-           "\n                    Available value: TRUE, FALSE"
-           "\n--msgboxsize        Specify the size of message box."
-           "\n                    Use any character to connect width and height, like \"400x1000\"."
-           "\n--msgboxpos         Specify the position of message box."
-           "\n                    Use any character to connect posX and posY, like \"50x50\"."
-           "\n--msgboxfontsize    Specify the fontsize of message box."
-           "\n--msgboxduration    Specify the duration of message box."
-           "\n                    If set, will overwrite default value read from xml."
-           "\n--giftminprice      Specify the the minimum price of the gifts, like \"5.20\" Yuan."
+           "\n--blacklist         Specify the blacklist plain text file which contains no more than 4096 danmakus"
+           "\n                     that separated by lines and will not show on the screen."
+           "\n                    For example: `black.txt`."
+           "\n"
+           "\n--blacklist-regex   Specify whether lines in the blacklist file should be treated as regular expressions."
+           "\n                    Available value: TRUE, FALSE (default)"
            "\n"
            "\n-b, --blockmode     Specify the type of danmaku which will not show on the screen."
            "\n                    Use '-' to connect the type-name, like \"L2R-TOP-BOTTOM\"."
@@ -1442,7 +1501,10 @@ void printHelpInfo()
            "\n"
            "\nOther options:"
            "\n-h, --help          Display this help and version information than exit."
-           "\n-c, --config        Display configuration information and exit."
+           "\n-c, --config        Specify configuration file(s) and display information."
+           "\n                    Accept multiple file paths, the latter will overwrite the previous values."
+           "\n                    For example, `-c \"base config.json\" \"typical value config.json\" ...`"
+           "\n                    *Note*: Arguments read from command line are superior."
            "\n--save              Save configuration as current command settings."
            "\n--ignore-warnings   Ignore all warnings, like `-y, --yes`."
            "\n"

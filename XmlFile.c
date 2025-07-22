@@ -51,7 +51,7 @@ static void errorExit(FILE *ipF, DANMAKU *head, DANMAKU *ptr);
 ** TRUE 包含
 ** FALSE 读取失败/不包含
 */
-BOOL findSubstr(FILE *file, const char *substr) {
+BOOL findSubstr(FILE *file, const char *substr, int maxlen) {
     // 保存当前文件指针位置
     long currentPos = ftell(file);
     if (currentPos == -1) {
@@ -60,11 +60,12 @@ BOOL findSubstr(FILE *file, const char *substr) {
 
     char buffer[1024];
     BOOL isFound = FALSE;
-    while (fgets(buffer, sizeof(buffer), file) != NULL) {
+    while (maxlen - 1 > 0 && fgets(buffer, maxlen < SIZE_NUM(char, buffer) ? maxlen : SIZE_NUM(char, buffer), file) != NULL) {
         if (strstr(buffer, substr) != NULL) {
             isFound = TRUE;
             break;
         }
+        maxlen -= (int)strlen(buffer);
     }
 
     // 恢复文件指针位置
@@ -105,7 +106,7 @@ int readXml(const char *const ipFile, DANMAKU **head, const char *mode, const fl
     }
 
     // 检查文件是否为录播姬生成的文件
-    BOOL isBililiveRecorder = findSubstr(ipF, "<BililiveRecorder");
+    BOOL isBililiveRecorder = findSubstr(ipF, "<BililiveRecorder", 1024);
     
     /* 判断读入方式 */
     if (*head == NULL || *mode == 'n')
@@ -244,13 +245,11 @@ int readXml(const char *const ipFile, DANMAKU **head, const char *mode, const fl
                 type = (short)atoi(deQuotMarks(tempText));
                 strGetLeftPart(tempText, &labelPtr, ',', MAX_TEXT_LENGTH);
                 fontSize = (short)atoi(deQuotMarks(tempText));
+
                 strGetLeftPart(tempText, &labelPtr, ',', MAX_TEXT_LENGTH);
                 color = atoi(deQuotMarks(tempText));
 
-                /* 跳过后四个无价值参数 */
-                strGetLeftPart(NULL, &labelPtr, ',', MAX_TEXT_LENGTH);
-                strGetLeftPart(NULL, &labelPtr, ',', MAX_TEXT_LENGTH);
-                strGetLeftPart(NULL, &labelPtr, ',', MAX_TEXT_LENGTH);
+                /* 跳过后续无价值参数 */
                 strGetLeftPart(NULL, &labelPtr, '\"', MAX_TEXT_LENGTH);
             }
             else if (strcmp(key, "ts") == 0)
@@ -337,6 +336,7 @@ int readXml(const char *const ipFile, DANMAKU **head, const char *mode, const fl
 
                     while (*rawPtr != '\0')
                     {
+                        // TODO: fix json parse.
                         strGetLeftPart(rawKey, &rawPtr, ':', KEY_LEN);
                         strGetLeftPart(rawValue, &rawPtr, ',', VALUE_LEN);
                         deQuotMarks(rawKey);
@@ -394,6 +394,7 @@ int readXml(const char *const ipFile, DANMAKU **head, const char *mode, const fl
         }
 
         if (messageType == MSG_GIFT && gift.duration == 0) {
+            // issues#111
             gift.duration = 5 * 1000;
         }
 
@@ -763,6 +764,7 @@ int writeXml(char const *const fileName, DANMAKU *danmakuHead, STATUS *const sta
  *    &amp;       &
  *    &apos;      '
  *    &quot;      " 
+ *    &#34;       "
   */
 static char *xmlUnescape(char *const str)
 {
@@ -807,6 +809,11 @@ static char *xmlUnescape(char *const str)
         {
             *dstPtr++ = '\"';
             srcPtr += 6;
+        }
+        else if (strncmp(srcPtr, "&#34;", 5) == 0)
+        {
+            *dstPtr++ = '\"';
+            srcPtr += 5;
         }
         else
         {

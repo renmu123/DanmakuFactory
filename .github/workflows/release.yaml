@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  release:
+  prebuild:
     runs-on: ${{ matrix.os }}
     timeout-minutes: 60
     env:
@@ -15,13 +15,13 @@ jobs:
 
     strategy:
       matrix:
-        os: [windows-latest, ubuntu-latest]
+        os: [windows-latest, ubuntu-latest, macos-latest]
 
     steps:
       - name: Check out Git repository
         uses: actions/checkout@v4
         with:
-          submodules: 'recursive'
+          submodules: "recursive"
 
       - name: Build Project
         uses: threeal/cmake-action@v2.1.0
@@ -37,14 +37,13 @@ jobs:
         with:
           name: package-${{ runner.os }}
           path: build/Release/DanmakuFactory.exe
-  
+
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         if: ${{ matrix.os == 'ubuntu-latest' || matrix.os == 'macos-latest'  }}
         with:
           name: package-${{ runner.os }}
           path: build/DanmakuFactory
-
 
   prebuild-linux-arm:
     strategy:
@@ -56,7 +55,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          submodules: 'recursive'
+          submodules: "recursive"
       - uses: docker/setup-qemu-action@v3
       - run: |
           docker run --rm -v $(pwd):/tmp/project --entrypoint /bin/sh --platform linux/${{ matrix.arch }} ubuntu:latest -c "\

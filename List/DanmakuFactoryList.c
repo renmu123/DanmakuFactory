@@ -26,6 +26,8 @@
 #include "DanmakuFactoryList.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include "../Config/Config.h"
+#include "../Define/DanmakuDef.h"
 
 void splitList(DANMAKU *source, DANMAKU **frontRef, DANMAKU **backRef) {
     if (source == NULL || source->next == NULL) {
@@ -96,6 +98,7 @@ void mergeSort(DANMAKU **headRef, STATUS *const status) {
 
     *headRef = sortedMerge(a, b, status);
 }
+
 
 /*
  * 排序整个链表
@@ -249,7 +252,7 @@ int sortList(DANMAKU **listHead, STATUS *const status)
  * BLK_SPECIAL     屏蔽特殊弹幕
  * BLK_COLOR       屏蔽非白色弹幕
  */
-void blockByType(DANMAKU *const danmakuHead, const int mode, const char **keyStrings, BOOL blocklistRegexEnabled)
+void blockByType(DANMAKU *const danmakuHead, const int mode, char **keyStrings, BOOL blocklistRegexEnabled)
 {
     if (mode == 0 && keyStrings == NULL)
     {
@@ -339,9 +342,8 @@ void blockByType(DANMAKU *const danmakuHead, const int mode, const char **keyStr
                 ptr -> type *= -1;
             }
         }
-        //TODO:关键字屏蔽以及正则匹配
         // 如果有关键字串集
-        if (keyStrings != NULL)
+        if (keyStrings != NULL && ptr -> text != NULL)
         {
             // 逐个检查关键字串
             for (int i = 0; keyStrings[i] != NULL; i++)
@@ -430,7 +432,6 @@ void blockByType(DANMAKU *const danmakuHead, const int mode, const char **keyStr
                         }
                     }
                     else if (ptr->text != NULL && strstr(ptr->text, keyStrings[i]) != NULL)
-                    // 如果弹幕文本中包含关键字串
                     {
                         if (ptr->type > 0)
                         {
@@ -462,6 +463,23 @@ void blockByType(DANMAKU *const danmakuHead, const int mode, const char **keyStr
         }
         ptr = ptr -> next;
     }
+
+    // 释放编译的正则表达式
+    if (blocklistRegexEnabled && regCodes != NULL)
+    {
+        for (int i = 0; i < regCodeCount; i++)
+        {
+            pcre2_code_free(regCodes[i]);
+        }
+        free(regCodes);
+    }
+
+    if (keyStrings != NULL && !blocklistRegexEnabled)
+    {
+        for (int i = 0; keyStrings[i] != NULL; ++i) {
+            free(keyStrings[i]);
+        }
+    }
 }
 
 /*
@@ -478,5 +496,35 @@ void freeList(DANMAKU *listHead)
         free(ptr -> text);/* 释放文本部分的空间 */
         free(ptr);
         ptr = listHead;
+    }
+}
+
+void normFontSize(DANMAKU* const danmakuHead, const CONFIG config)
+{
+    BOOL doNormalize = FALSE;
+
+    if (config.fontSizeNorm) {
+        for (DANMAKU* ptr = (DANMAKU*)danmakuHead; ptr != NULL; ptr = ptr->next)
+        {
+            if (ptr->type == SPECIAL) {
+                continue;
+            }
+
+            if (ptr->fontSize <= 0 || ptr->fontSize >= config.resolution.y) {
+                doNormalize = TRUE;
+                break;
+            }
+        }
+    }
+
+    if (config.fontSizeStrict || doNormalize) {
+        for (DANMAKU* ptr = (DANMAKU*)danmakuHead; ptr != NULL; ptr = ptr->next)
+        {
+            if (ptr->type == SPECIAL) {
+                continue;
+            }
+
+            ptr->fontSize = 25;
+        }
     }
 }

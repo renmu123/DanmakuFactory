@@ -56,7 +56,9 @@ cmake --build build
 
 打开 macOS/ 下的 DanmakuFactory.xcodeproj。
 
+##### Python 版本(Developing)
 
+如果想使用 Python 版本，可以参考：[DanmakuConvert](https://github.com/timerring/DanmakuConvert)
 
 #### 文件格式支持情况
 
