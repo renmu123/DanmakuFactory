@@ -21,7 +21,7 @@ function package_release(target)
     os.mkdir(package_dir)
 
     -- 生成压缩包名称
-    local package_name = ("%s-dev-%s-%s-CLI"):format(target:basename(), os.host(), os.arch())
+    local package_name = ("%s-%s-%s-CLI"):format(target:basename(), os.host(), os.arch())
     local package_path = path.join(package_dir, package_name)
 
     -- 执行打包（跨平台兼容）
