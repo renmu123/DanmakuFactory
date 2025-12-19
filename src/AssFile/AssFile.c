@@ -22,8 +22,8 @@
  */
 
 #include "AssFile.h"
-#include "../Define/CLIDef.h"
 #include "../FileUtil/FileUtil.h"
+#include "../Define/CLIDef.h"
 #include "AssStringProcessing.h"
 
 static int printStatDataStr(FILE *filePtr, const int startTime, const int endTime, const int posX, const int posY,
