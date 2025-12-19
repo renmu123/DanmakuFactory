@@ -26,7 +26,7 @@
 
 #define GUI_SUPPORT // 给GUI版本提供一些特殊的功能支持
 
-#define VERSION "1.70"
+#define VERSION "2.0.0"
 #define EDITION "CLI Release"
 #define CONFIG_FILE_NAME "DanmakuFactoryConfig.json"
 #define FILENAME_LEN 1024

@@ -1,3 +1,7 @@
+# 说明
+
+fork 自 https://github.com/hihkm/DanmakuFactory，与原版略微有点不同，发布会更加频繁，具体见发行发明
+
 # DanmukuFactory
 
 [![Build & Release](https://github.com/hihkm/DanmakuFactory/actions/workflows/build-release.yml/badge.svg)](https://github.com/hihkm/DanmakuFactory/actions/workflows/build-release.yml)

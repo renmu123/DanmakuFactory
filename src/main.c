@@ -112,8 +112,8 @@ int main(int argc, char **argv)
     outfile.isSet = FALSE;
 
     /* 打印程序版本信息 */
-    printf("\nDanmakuFactory " VERSION " " EDITION " by hkm (hkm@tikm.org)"
-           "\nhttps://github.com/hihkm/DanmakuFactory\n");
+    printf("\nDanmakuFactory " VERSION " " EDITION " by hkm (hkm@tikm.org) forked by renmu123"
+           "\nhttps://github.com/renmu123/DanmakuFactory\n");
 
     tempStr[0] = '\0';
 #ifdef _WIN32
