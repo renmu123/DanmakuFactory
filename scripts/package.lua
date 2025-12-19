@@ -26,15 +26,14 @@ function package_release(target)
 
     -- 执行打包（跨平台兼容）
     print("Packaging %s...", package_name)
+    package_path = package_path .. ".zip"
     if is_plat("windows") then
-        package_path = package_path .. ".zip"
         os.execv("powershell", {"-Command",
                                 string.format(
             "Compress-Archive -Path '%s\\*' -DestinationPath '%s' -Force -CompressionLevel Optimal", tmp_dir,
             package_path)})
     else
-        package_path = package_path .. ".tar.gz"
-        os.execv("tar", {"--use-compress-program", "gzip -9", "-cvf", package_path, "-C", tmp_dir, "."})
+        os.execv("zip", {"-r", "-9", package_path, "."}, {curdir = tmp_dir})
     end
 
     -- 清理临时目录
