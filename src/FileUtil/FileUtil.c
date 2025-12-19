@@ -3,9 +3,9 @@
 #include <string.h>
 
 #ifdef _WIN32
-#include <io.h>
-#include <shellapi.h>
 #include <windows.h>
+#include <shellapi.h>
+#include <io.h>
 
 FILE *utf8_fopen(const char *filename, const char *mode)
 {
@@ -27,10 +27,8 @@ FILE *utf8_fopen(const char *filename, const char *mode)
 
     if (!wfilename || !wmode)
     {
-        if (wfilename)
-            free(wfilename);
-        if (wmode)
-            free(wmode);
+        if (wfilename) free(wfilename);
+        if (wmode) free(wmode);
         return NULL;
     }
 
