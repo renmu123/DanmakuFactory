@@ -393,14 +393,6 @@ void blockByType(DANMAKU *const danmakuHead, const int mode, char **keyStrings, 
         }
         free(regCodes);
     }
-
-    if (keyStrings != NULL && !blocklistRegexEnabled)
-    {
-        for (int i = 0; keyStrings[i] != NULL; ++i)
-        {
-            free(keyStrings[i]);
-        }
-    }
 }
 
 /*
