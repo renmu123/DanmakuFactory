@@ -53,7 +53,15 @@ BOOL isContinue(BOOL skip);
 /* 全局调试标志 */
 static BOOL g_debugMode = FALSE;
 
-#define DEBUG_PRINT(...) do { if (g_debugMode) { fprintf(stderr, "[DEBUG] "); fprintf(stderr, __VA_ARGS__); } } while(0)
+#define DEBUG_PRINT(...)                                                                                               \
+    do                                                                                                                 \
+    {                                                                                                                  \
+        if (g_debugMode)                                                                                               \
+        {                                                                                                              \
+            fprintf(stderr, "[DEBUG] ");                                                                               \
+            fprintf(stderr, __VA_ARGS__);                                                                              \
+        }                                                                                                              \
+    } while (0)
 
 static CONFIG defaultConfig = {
     {1920, 1080}, /* 分辨率 */
@@ -725,9 +733,9 @@ int main(int argc, char **argv)
                     fclose(fp);
                     return 0;
                 }
-                
+
                 DEBUG_PRINT("Allocated memory for blacklist (max 4096 entries)\n");
-                
+
                 int i = 0;
                 while (i < 4096 && fgets(buf, 4096, fp) != NULL)
                 {
@@ -738,9 +746,9 @@ int main(int argc, char **argv)
                     }
                     if (strlen(buf) == 0)
                         continue;
-                    
+
                     DEBUG_PRINT("Blacklist entry %d: '%s' (len: %zu)\n", i, buf, strlen(buf));
-                    
+
                     tokens[i] = strdup(buf); // malloc here.
                     if (tokens[i] == NULL)
                     {
@@ -761,8 +769,8 @@ int main(int argc, char **argv)
                 free(buf);
                 fclose(fp);
                 config.blocklist = tokens;
-                
-                DEBUG_PRINT("Loaded %d blacklist entries, tokens array at %p\n", i, (void*)tokens);
+
+                DEBUG_PRINT("Loaded %d blacklist entries, tokens array at %p\n", i, (void *)tokens);
 
                 argCnt += 2;
             }

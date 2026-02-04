@@ -185,10 +185,12 @@ int sortList(DANMAKU **listHead, STATUS *const status)
 void blockByType(DANMAKU *const danmakuHead, const int mode, char **keyStrings, BOOL blocklistRegexEnabled)
 {
 #ifdef DEBUG_BLOCKLIST
-    fprintf(stderr, "[DEBUG blockByType] mode=%d, keyStrings=%p, regexEnabled=%d\n", 
-            mode, (void*)keyStrings, blocklistRegexEnabled);
-    if (keyStrings != NULL) {
-        for (int i = 0; keyStrings[i] != NULL; i++) {
+    fprintf(stderr, "[DEBUG blockByType] mode=%d, keyStrings=%p, regexEnabled=%d\n", mode, (void *)keyStrings,
+            blocklistRegexEnabled);
+    if (keyStrings != NULL)
+    {
+        for (int i = 0; keyStrings[i] != NULL; i++)
+        {
             fprintf(stderr, "[DEBUG blockByType] keyStrings[%d]='%s'\n", i, keyStrings[i]);
         }
     }
@@ -245,10 +247,12 @@ void blockByType(DANMAKU *const danmakuHead, const int mode, char **keyStrings, 
     {
         danmakuCount++;
 #ifdef DEBUG_BLOCKLIST
-        if (danmakuCount <= 5) {
+        if (danmakuCount <= 5)
+        {
             fprintf(stderr, "[DEBUG blockByType] Processing danmaku #%d: ptr=%p, text=%p, user=%p, type=%d\n",
-                    danmakuCount, (void*)ptr, (void*)ptr->text, (void*)ptr->user, ptr->type);
-            if (ptr->text != NULL) {
+                    danmakuCount, (void *)ptr, (void *)ptr->text, (void *)ptr->user, ptr->type);
+            if (ptr->text != NULL)
+            {
                 fprintf(stderr, "[DEBUG blockByType]   text='%s'\n", ptr->text);
             }
         }
