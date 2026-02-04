@@ -694,9 +694,17 @@ int main(int argc, char **argv)
                     return 0;
                 }
                 char buf[4096];
-                char *tokens[4096 + 1];
+                char **tokens = (char **)malloc(sizeof(char *) * (4096 + 1));
+                if (tokens == NULL)
+                {
+                    fprintf(stderr,
+                            "\nERROR"
+                            "\nMemory allocation failed for blacklist tokens!\n");
+                    fclose(fp);
+                    return 0;
+                }
                 int i = 0;
-                while (i < SIZE_NUM(char *, tokens) - 1 && fgets(buf, SIZE_NUM(char, buf), fp) != NULL)
+                while (i < 4096 && fgets(buf, SIZE_NUM(char, buf), fp) != NULL)
                 {
                     size_t len = strlen(buf);
                     if (len >= 1 && buf[len - 1] == '\n')
