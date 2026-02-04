@@ -50,6 +50,11 @@ COORDIN getArgValCoodr(int argc, char **argv, const int optIndex, const char *co
 void toPause(BOOL skip);
 BOOL isContinue(BOOL skip);
 
+/* 全局调试标志 */
+static BOOL g_debugMode = FALSE;
+
+#define DEBUG_PRINT(...) do { if (g_debugMode) { fprintf(stderr, "[DEBUG] "); fprintf(stderr, __VA_ARGS__); } } while(0)
+
 static CONFIG defaultConfig = {
     {1920, 1080}, /* 分辨率 */
     1.00,         /* 显示区域 */
@@ -105,6 +110,7 @@ int main(int argc, char **argv)
     BOOL configFileErr = FALSE;
     BOOL ignoreWarnings = FALSE;
     BOOL forceOverwrite = FALSE;
+    BOOL debugMode = FALSE;
     CONFIG config;
     char tempStr[MAX_TEXT_LENGTH], *tempPtr;
     char programPath[MAX_TEXT_LENGTH];
@@ -172,6 +178,13 @@ int main(int argc, char **argv)
             {
                 printHelpInfo();
                 return 0;
+            }
+            else if (!strcmp("--debug", argv[argCnt]))
+            {
+                debugMode = TRUE;
+                g_debugMode = TRUE;
+                fprintf(stderr, "[DEBUG] Debug mode enabled\n");
+                argCnt += 1;
             }
             else if (!strcmp("-c", argv[argCnt]) || !strcmp("--config", argv[argCnt]))
             { // 读取配置文件
@@ -684,6 +697,8 @@ int main(int argc, char **argv)
                 // 读取黑名单文件
                 char *filename = argv[argCnt + 1];
 
+                DEBUG_PRINT("Reading blacklist file: %s\n", filename);
+
                 FILE *fp = utf8_fopen(filename, "r");
                 if (fp == NULL)
                 {
@@ -710,6 +725,9 @@ int main(int argc, char **argv)
                     fclose(fp);
                     return 0;
                 }
+                
+                DEBUG_PRINT("Allocated memory for blacklist (max 4096 entries)\n");
+                
                 int i = 0;
                 while (i < 4096 && fgets(buf, 4096, fp) != NULL)
                 {
@@ -720,6 +738,9 @@ int main(int argc, char **argv)
                     }
                     if (strlen(buf) == 0)
                         continue;
+                    
+                    DEBUG_PRINT("Blacklist entry %d: '%s' (len: %zu)\n", i, buf, strlen(buf));
+                    
                     tokens[i] = strdup(buf); // malloc here.
                     if (tokens[i] == NULL)
                     {
@@ -740,6 +761,8 @@ int main(int argc, char **argv)
                 free(buf);
                 fclose(fp);
                 config.blocklist = tokens;
+                
+                DEBUG_PRINT("Loaded %d blacklist entries, tokens array at %p\n", i, (void*)tokens);
 
                 argCnt += 2;
             }
@@ -1600,6 +1623,7 @@ void printHelpInfo()
            "\n                    Available value: TRUE, FALSE (default)"
            "\n"
            "\nOther options:"
+           "\n--debug             Enable debug mode to print verbose debugging information to stderr."
            "\n-h, --help          Display this help and version information than exit."
            "\n-c, --config        Specify configuration file(s) and display information."
            "\n                    Accept multiple file paths, the latter will overwrite the previous values."
