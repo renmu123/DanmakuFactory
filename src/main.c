@@ -693,10 +693,25 @@ int main(int argc, char **argv)
                             filename);
                     return 0;
                 }
-                char buf[4096];
-                char *tokens[4096 + 1];
+                char *buf = (char *)malloc(4096);
+                if (buf == NULL)
+                {
+                    fprintf(stderr, "\nERROR"
+                                    "\nOut of memory.\n");
+                    fclose(fp);
+                    return 0;
+                }
+                char **tokens = (char **)malloc((4096 + 1) * sizeof(char *));
+                if (tokens == NULL)
+                {
+                    fprintf(stderr, "\nERROR"
+                                    "\nOut of memory.\n");
+                    free(buf);
+                    fclose(fp);
+                    return 0;
+                }
                 int i = 0;
-                while (i < SIZE_NUM(char *, tokens) - 1 && fgets(buf, SIZE_NUM(char, buf), fp) != NULL)
+                while (i < 4096 && fgets(buf, 4096, fp) != NULL)
                 {
                     size_t len = strlen(buf);
                     if (len >= 1 && buf[len - 1] == '\n')
@@ -706,9 +721,23 @@ int main(int argc, char **argv)
                     if (strlen(buf) == 0)
                         continue;
                     tokens[i] = strdup(buf); // malloc here.
+                    if (tokens[i] == NULL)
+                    {
+                        fprintf(stderr, "\nERROR"
+                                        "\nOut of memory.\n");
+                        for (int j = 0; j < i; j++)
+                        {
+                            free(tokens[j]);
+                        }
+                        free(tokens);
+                        free(buf);
+                        fclose(fp);
+                        return 0;
+                    }
                     i++;
                 }
                 tokens[i] = NULL;
+                free(buf);
                 fclose(fp);
                 config.blocklist = tokens;
 
