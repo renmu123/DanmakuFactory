@@ -1,6 +1,6 @@
 # 本版本
 
-## Next
+## 2.1.0
 
 - musl support [#5](https://github.com/renmu123/DanmakuFactory/pull/5)
 - Linux 下黑名单参数修复 https://github.com/renmu123/biliLive-tools/issues/337
