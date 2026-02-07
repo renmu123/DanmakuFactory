@@ -21,7 +21,10 @@ function package_release(target)
     os.mkdir(package_dir)
 
     -- 生成压缩包名称
-    local package_name = ("%s-%s-%s-CLI"):format(target:basename(), os.host(), os.arch())
+    local toolchain = target:get("toolchains") or {}
+    local is_musl = has_config and has_config("musl")
+    local toolchain_suffix = is_musl and "-musl" or ""
+    local package_name = ("%s-%s-%s%s-CLI"):format(target:basename(), os.host(), os.arch(), toolchain_suffix)
     local package_path = path.join(package_dir, package_name)
 
     -- 执行打包（跨平台兼容）
