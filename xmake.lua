@@ -15,7 +15,7 @@ target("cli")
     set_basename(PROJECT_NAME)
     set_kind("binary")
     set_languages("c11")
-    set_version("2.1.0", {build = "%Y%m%d%H%M"})
+    set_version("2.1.1", {build = "%Y%m%d%H%M"})
 
     if has_config("musl") then
         add_cflags("-static", "-fuse-ld=musl")
