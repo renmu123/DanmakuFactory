@@ -4,7 +4,7 @@ add_rules("mode.debug", "mode.release")
 
 set_project(PROJECT_NAME)
 
-add_requires("pcre2")
+add_requires("pcre2", {configs = {shared = false}})
 
 option("musl")
     set_default(os.getenv("XMAKE_BUILD_MUSL") == "1" or false)
